@@ -136,8 +136,13 @@ export default function QuizContainer() {
 
       <GlassCard
         strong
-        className="relative z-10 w-full max-w-md p-6 sm:p-8 rounded-3xl"
+        className="relative z-10 w-full max-w-md rounded-3xl overflow-hidden"
       >
+        <div className="flex justify-center items-center py-4 border-b border-white/5">
+          <img src="/logo.png" alt="Grupo Haganá Paraná" className="h-8 w-auto object-contain" draggable={false} />
+        </div>
+
+        <div className="p-6 sm:p-8">
         <AnimatePresence mode="wait">
           {state.stage === 'intro' && (
             <QuizIntro key="intro" onStart={handleStart} />
@@ -173,13 +178,8 @@ export default function QuizContainer() {
             <DisqualifiedScreen key="disqualified" />
           )}
         </AnimatePresence>
-      </GlassCard>
-
-      {state.stage !== 'intro' && state.stage !== 'gate' && (
-        <div className="absolute bottom-4 left-0 right-0 flex justify-center z-10">
-          <img src="/logo.png" alt="Grupo Haganá Paraná" className="h-6 opacity-30 object-contain" />
         </div>
-      )}
+      </GlassCard>
     </main>
   )
 }

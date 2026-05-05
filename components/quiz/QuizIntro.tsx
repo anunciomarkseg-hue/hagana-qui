@@ -23,22 +23,7 @@ export default function QuizIntro({ onStart }: QuizIntroProps) {
       transition={{ duration: 0.5, ease: 'easeOut' }}
       className="flex flex-col items-center text-center gap-8"
     >
-      {/* Logo */}
-      <motion.div
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ delay: 0.1, duration: 0.5 }}
-        className="animate-float"
-      >
-        <img
-          src="/logo.png"
-          alt="Grupo Haganá Paraná"
-          className="h-16 sm:h-20 w-auto object-contain"
-          draggable={false}
-        />
-      </motion.div>
-
-      {/* Headline */}
+{/* Headline */}
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}

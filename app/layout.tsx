@@ -3,12 +3,12 @@ import './globals.css'
 import UTMCapture from '@/components/UTMCapture'
 
 export const metadata: Metadata = {
-  title: 'Haganá Segurança — Análise Gratuita',
-  description: 'Descubra em 2 minutos qual solução de segurança e facilities é ideal para o seu espaço. Análise personalizada gratuita.',
+  title: 'Grupo Haganá Paraná — Análise Personalizada',
+  description: 'Descubra qual solução de segurança e facilities é ideal para o seu empreendimento. Análise personalizada para Curitiba e Região Metropolitana.',
   robots: 'noindex, nofollow',
   openGraph: {
-    title: 'Haganá Segurança — Análise Gratuita',
-    description: 'Descubra qual solução de segurança é ideal para o seu espaço.',
+    title: 'Grupo Haganá Paraná — Análise Personalizada',
+    description: 'Descubra qual solução de segurança é ideal para o seu empreendimento.',
     locale: 'pt_BR',
     type: 'website',
   },

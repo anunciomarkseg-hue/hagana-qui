@@ -20,7 +20,6 @@ export default function Obrigado() {
         transition={{ duration: 0.6, ease: 'easeOut' }}
         className="glass-strong relative z-10 rounded-3xl p-8 sm:p-12 max-w-lg w-full text-center noise"
       >
-        {/* Icon */}
         <motion.div
           initial={{ scale: 0 }}
           animate={{ scale: 1 }}
@@ -38,11 +37,11 @@ export default function Obrigado() {
         </h1>
 
         <p className="text-[rgba(240,244,241,0.7)] text-base mb-8 leading-relaxed">
-          Nossa equipe comercial entrará em contato em breve com uma proposta personalizada para o seu espaço.
+          Nossa equipe comercial entrará em contato em breve com uma proposta personalizada para o seu empreendimento.
         </p>
 
         <div className="glass rounded-2xl p-4 mb-8">
-          <p className="text-[rgba(240,244,241,0.5)] text-xs uppercase tracking-widest mb-1">Haganá Segurança</p>
+          <p className="text-[rgba(240,244,241,0.5)] text-xs uppercase tracking-widest mb-1">Grupo Haganá Paraná</p>
           <p className="text-[#F5C800] font-semibold text-sm">Curitiba e Região Metropolitana</p>
         </div>
 
@@ -50,7 +49,7 @@ export default function Obrigado() {
           href="https://www.hagana.com.br"
           className="btn-secondary inline-flex items-center gap-2 px-6 py-3 rounded-xl text-[rgba(240,244,241,0.7)] text-sm font-medium"
         >
-          Conheça a Haganá
+          Conheça o Grupo Haganá Paraná
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
             <polyline points="15 3 21 3 21 9" />

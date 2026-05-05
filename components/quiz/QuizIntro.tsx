@@ -8,9 +8,9 @@ interface QuizIntroProps {
 }
 
 const benefits = [
-  { icon: '⚡', text: 'Apenas 2 minutos' },
-  { icon: '🎯', text: 'Análise personalizada' },
-  { icon: '🔒', text: 'Sem compromisso' },
+  { text: 'Atendimento prioritário' },
+  { text: 'Análise personalizada' },
+  { text: 'Sem compromisso' },
 ]
 
 export default function QuizIntro({ onStart }: QuizIntroProps) {
@@ -32,7 +32,7 @@ export default function QuizIntro({ onStart }: QuizIntroProps) {
       >
         <img
           src="/logo.png"
-          alt="Haganá Segurança"
+          alt="Grupo Haganá Paraná"
           className="h-16 sm:h-20 w-auto object-contain"
           draggable={false}
         />
@@ -50,10 +50,10 @@ export default function QuizIntro({ onStart }: QuizIntroProps) {
           <span className="text-glow-yellow" style={{ color: '#F5C800' }}>
             ideal
           </span>{' '}
-          para o seu espaço
+          para o seu empreendimento
         </h1>
         <p className="text-[rgba(240,244,241,0.6)] text-base sm:text-lg max-w-sm mx-auto leading-relaxed">
-          Responda 8 perguntas rápidas e receba uma recomendação personalizada de segurança e facilities.
+          Responda algumas perguntas e receba uma recomendação personalizada de segurança e facilities.
         </p>
       </motion.div>
 
@@ -69,7 +69,6 @@ export default function QuizIntro({ onStart }: QuizIntroProps) {
             key={b.text}
             className="glass flex items-center gap-2 px-4 py-2 rounded-full"
           >
-            <span className="text-base">{b.icon}</span>
             <span className="text-[rgba(240,244,241,0.75)] text-xs font-medium">{b.text}</span>
           </div>
         ))}
@@ -83,14 +82,14 @@ export default function QuizIntro({ onStart }: QuizIntroProps) {
         className="w-full max-w-xs"
       >
         <GlowButton onClick={onStart} size="lg" fullWidth>
-          Iniciar análise gratuita
+          Iniciar análise
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M5 12h14M12 5l7 7-7 7" />
           </svg>
         </GlowButton>
 
         <p className="text-[rgba(240,244,241,0.3)] text-xs mt-3">
-          Haganá Segurança · Curitiba e Região Metropolitana
+          Grupo Haganá Paraná · Curitiba e Região Metropolitana
         </p>
       </motion.div>
     </motion.div>

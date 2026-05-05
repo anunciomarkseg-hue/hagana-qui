@@ -21,12 +21,6 @@ export default function OptionCard({ option, selected, onSelect, index }: Option
       type="button"
     >
       <div className="relative z-10 flex items-center gap-3">
-        {option.emoji && (
-          <span className="text-xl sm:text-2xl flex-shrink-0 select-none" aria-hidden>
-            {option.emoji}
-          </span>
-        )}
-
         <span className={`font-medium text-sm sm:text-base leading-snug ${
           selected ? 'text-white' : 'text-[rgba(240,244,241,0.85)]'
         }`}>

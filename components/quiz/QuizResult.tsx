@@ -1,31 +1,24 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
 import { QUIZ_QUESTIONS, getLeadLabel, buildAnswerSummary } from '@/lib/quiz-data'
 import GlowButton from '@/components/ui/GlowButton'
 import GlassCard from '@/components/ui/GlassCard'
 import { trackLeadSubmit } from '@/lib/tracking'
 import { getStoredUTMs } from '@/lib/utm'
+import { FormData } from '@/components/quiz/QuizContainer'
+
+const CALENDAR_URL = process.env.NEXT_PUBLIC_CALENDAR_URL || '#'
 
 interface QuizResultProps {
   answers: Record<number, string | string[]>
   score: number
+  formData: FormData
 }
 
-
-interface FormData {
-  name: string
-  email: string
-  phone: string
-  company: string
-}
-
-const labelConfig = {
-  hot:  { text: 'Alto potencial',  color: '#F5C800', bg: 'rgba(245,200,0,0.12)',  dot: '#F5C800' },
-  warm: { text: 'Bom perfil',      color: '#2DB84B', bg: 'rgba(45,184,75,0.12)',  dot: '#2DB84B' },
-  cold: { text: 'Em avaliação',    color: '#2DB84B', bg: 'rgba(45,184,75,0.08)',  dot: '#2DB84B' },
-}
+// Questions to show in the summary (choice-only, non-text)
+const SUMMARY_QUESTIONS = [0, 3, 4, 7, 8, 9]
 
 function getAnswerLabel(qIndex: number, answer: string | string[]): string {
   const question = QUIZ_QUESTIONS[qIndex]
@@ -34,68 +27,34 @@ function getAnswerLabel(qIndex: number, answer: string | string[]): string {
   return ids.map(id => question.options.find(o => o.id === id)?.label ?? id).join(', ')
 }
 
-const SUMMARY_QUESTIONS = [0, 1, 6, 7]
+export default function QuizResult({ answers, score, formData }: QuizResultProps) {
+  const sent = useRef(false)
 
-export default function QuizResult({ answers, score }: QuizResultProps) {
-  const [form, setForm] = useState<FormData>({ name: '', email: '', phone: '', company: '' })
-  const [loading, setLoading] = useState(false)
-  const [submitted, setSubmitted] = useState(false)
-  const [error, setError] = useState('')
+  useEffect(() => {
+    if (sent.current) return
+    sent.current = true
 
-  const label = getLeadLabel(score)
-  const cfg = labelConfig[label]
+    const summary = buildAnswerSummary(answers)
+    const utm = getStoredUTMs()
+    const label = getLeadLabel(score)
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!form.name || !form.email || !form.phone) {
-      setError('Preencha nome, e-mail e telefone para continuar.')
-      return
-    }
-    setError('')
-    setLoading(true)
-
-    try {
-      const summary = buildAnswerSummary(answers)
-      const utm = getStoredUTMs()
-      const res = await fetch('/api/leads', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, score, label, summary, utm }),
-      })
-      if (!res.ok) throw new Error('Falha no envio')
-
-      trackLeadSubmit()
-      setSubmitted(true)
-      setTimeout(() => {
-        window.location.href = '/obrigado'
-      }, 1200)
-    } catch {
-      setError('Ocorreu um erro. Tente novamente.')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  if (submitted) {
-    return (
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className="flex flex-col items-center gap-4 py-8 text-center"
-      >
-        <div
-          className="w-16 h-16 rounded-full flex items-center justify-center"
-          style={{ background: 'linear-gradient(135deg, #1A6B2E, #2DB84B)', boxShadow: '0 0 28px rgba(45,184,75,0.5)' }}
-        >
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="20 6 9 17 4 12" />
-          </svg>
-        </div>
-        <p className="text-white font-semibold text-lg">Enviado com sucesso!</p>
-        <p className="text-[rgba(240,244,241,0.5)] text-sm">Redirecionando...</p>
-      </motion.div>
-    )
-  }
+    fetch('/api/leads', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: formData.name,
+        email: formData.email,
+        phone: formData.phone,
+        company: formData.company,
+        score,
+        label,
+        summary,
+        utm,
+      }),
+    })
+      .then(() => trackLeadSubmit())
+      .catch(console.error)
+  }, [])
 
   return (
     <motion.div
@@ -112,11 +71,12 @@ export default function QuizResult({ answers, score }: QuizResultProps) {
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 0.1 }}
-          className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-semibold"
-          style={{ background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.color}40` }}
+          className="w-16 h-16 mx-auto rounded-full flex items-center justify-center"
+          style={{ background: 'linear-gradient(135deg, #1A6B2E, #2DB84B)', boxShadow: '0 0 28px rgba(45,184,75,0.5)' }}
         >
-          <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: cfg.dot }} />
-          {cfg.text}
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
         </motion.div>
 
         <motion.h2
@@ -125,7 +85,7 @@ export default function QuizResult({ answers, score }: QuizResultProps) {
           transition={{ delay: 0.15 }}
           className="text-2xl sm:text-3xl font-bold text-white"
         >
-          Análise concluída!
+          Cadastro concluído!
         </motion.h2>
         <motion.p
           initial={{ opacity: 0 }}
@@ -133,11 +93,11 @@ export default function QuizResult({ answers, score }: QuizResultProps) {
           transition={{ delay: 0.2 }}
           className="text-[rgba(240,244,241,0.55)] text-sm"
         >
-          Nossa equipe vai preparar uma proposta personalizada para você.
+          Nossa equipe vai entrar em contato com você, {formData.name}.
         </motion.p>
       </div>
 
-      {/* Answer summary */}
+      {/* Resumo das respostas */}
       <GlassCard className="p-4">
         <p className="text-[rgba(240,244,241,0.4)] text-xs uppercase tracking-widest mb-3">Seu perfil</p>
         <div className="flex flex-col gap-2">
@@ -156,81 +116,35 @@ export default function QuizResult({ answers, score }: QuizResultProps) {
         </div>
       </GlassCard>
 
-      {/* Lead form */}
+      {/* Agendar reunião */}
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.3 }}
+        className="flex flex-col gap-3"
       >
-        <p className="text-[rgba(240,244,241,0.7)] text-sm font-medium mb-4 text-center">
-          Para onde enviamos a proposta personalizada?
+        <p className="text-[rgba(240,244,241,0.7)] text-sm font-medium text-center">
+          Quer adiantar? Agende agora mesmo:
         </p>
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-          <input
-            type="text"
-            placeholder="Seu nome completo *"
-            value={form.name}
-            onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-            className="form-input w-full px-4 py-3.5 rounded-xl text-sm"
-            required
-          />
-          <input
-            type="email"
-            placeholder="Seu e-mail *"
-            value={form.email}
-            onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-            className="form-input w-full px-4 py-3.5 rounded-xl text-sm"
-            required
-          />
-          <input
-            type="tel"
-            placeholder="WhatsApp / Telefone *"
-            value={form.phone}
-            onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
-            className="form-input w-full px-4 py-3.5 rounded-xl text-sm"
-            required
-          />
-          <input
-            type="text"
-            placeholder="Empresa (opcional)"
-            value={form.company}
-            onChange={e => setForm(f => ({ ...f, company: e.target.value }))}
-            className="form-input w-full px-4 py-3.5 rounded-xl text-sm"
-          />
+        <a
+          href={CALENDAR_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="btn-primary w-full flex items-center justify-center gap-2 px-6 py-4 rounded-xl font-semibold text-white text-base"
+        >
+          Agendar uma reunião agora
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+            <line x1="16" y1="2" x2="16" y2="6" />
+            <line x1="8" y1="2" x2="8" y2="6" />
+            <line x1="3" y1="10" x2="21" y2="10" />
+          </svg>
+        </a>
 
-          {error && (
-            <p className="text-red-400 text-xs text-center">{error}</p>
-          )}
-
-          <GlowButton type="submit" size="lg" fullWidth disabled={loading}>
-            {loading ? (
-              <>
-                <motion.span
-                  animate={{ rotate: 360 }}
-                  transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-                  className="inline-block"
-                >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                    <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-                  </svg>
-                </motion.span>
-                Enviando...
-              </>
-            ) : (
-              <>
-                Receber proposta personalizada
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M5 12h14M12 5l7 7-7 7" />
-                </svg>
-              </>
-            )}
-          </GlowButton>
-
-          <p className="text-[rgba(240,244,241,0.25)] text-xs text-center">
-            Seus dados são protegidos. Nenhum spam.
-          </p>
-        </form>
+        <p className="text-[rgba(240,244,241,0.25)] text-xs text-center">
+          Ou aguarde — nossa equipe entrará em contato em breve.
+        </p>
       </motion.div>
     </motion.div>
   )

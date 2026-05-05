@@ -1,7 +1,6 @@
 export interface QuizOption {
   id: string
   label: string
-  emoji?: string
   disqualify?: boolean
   score?: number
   tag?: string
@@ -11,7 +10,9 @@ export interface QuizQuestion {
   id: number
   question: string
   subtitle?: string
-  type: 'single' | 'multiple'
+  type: 'single' | 'multiple' | 'text' | 'contact'
+  placeholder?: string
+  fieldKey?: 'name' | 'company'
   maxSelections?: number
   options: QuizOption[]
 }
@@ -19,47 +20,49 @@ export interface QuizQuestion {
 export const QUIZ_QUESTIONS: QuizQuestion[] = [
   {
     id: 0,
-    question: 'O que você está buscando para o seu espaço?',
-    subtitle: 'Selecione a opção que melhor descreve sua necessidade',
+    question: 'Qual tipo de empreendimento precisa de atendimento?',
     type: 'single',
     options: [
-      { id: 'security',   label: 'Segurança',           emoji: '🛡️', score: 15, tag: 'segurança' },
-      { id: 'facilities', label: 'Facilities',           emoji: '🏢', score: 15, tag: 'facilities' },
-      { id: 'both',       label: 'Segurança + Facilities integrados', emoji: '⚡', score: 20, tag: 'ambos' },
-      { id: 'evaluating', label: 'Ainda estou avaliando as opções',   emoji: '🔍', score: 5,  tag: 'avaliando' },
+      { id: 'condo-res',   label: 'Condomínio Residencial',             score: 20 },
+      { id: 'condo-com',   label: 'Condomínio Comercial / Logístico',   score: 20 },
+      { id: 'institution', label: 'Escola, Hospital ou Clínica',        score: 20 },
+      { id: 'other',       label: 'Outros',                             score: 10 },
     ],
   },
   {
     id: 1,
-    question: 'Qual tipo de espaço precisa de atendimento?',
-    type: 'single',
-    options: [
-      { id: 'company',     label: 'Empresa ou comércio',           emoji: '🏪', score: 20 },
-      { id: 'condo',       label: 'Condomínio residencial',         emoji: '🏘️', score: 20 },
-      { id: 'institution', label: 'Escola, hospital ou clínica',    emoji: '🏥', score: 20 },
-      { id: 'industry',    label: 'Indústria ou galpão',            emoji: '🏭', score: 20 },
-      { id: 'residence',   label: 'Residência',                     emoji: '🏠', score: 10 },
-    ],
+    question: 'Qual o nome da sua empresa?',
+    type: 'text',
+    placeholder: 'Nome da empresa',
+    fieldKey: 'company',
+    options: [],
   },
   {
     id: 2,
-    question: 'Quais serviços você tem interesse?',
-    subtitle: 'Pode selecionar mais de um',
-    type: 'multiple',
-    maxSelections: 4,
-    options: [
-      { id: 'armed-guard',  label: 'Vigilância armada',                score: 10 },
-      { id: 'guard',        label: 'Vigilância desarmada / portaria',   score: 10 },
-      { id: 'cctv',         label: 'Câmeras CFTV / monitoramento',      score: 10 },
-      { id: 'alarm',        label: 'Alarme monitorado',                 score: 10 },
-      { id: 'access',       label: 'Controle de acesso',                score: 10 },
-      { id: 'cleaning',     label: 'Limpeza e conservação',             score: 10 },
-      { id: 'maintenance',  label: 'Manutenção predial',                score: 10 },
-      { id: 'reception',    label: 'Recepção / atendimento',            score: 10 },
-    ],
+    question: 'E qual o seu nome?',
+    subtitle: 'A partir daqui, vamos personalizar sua análise.',
+    type: 'text',
+    placeholder: 'Seu nome completo',
+    fieldKey: 'name',
+    options: [],
   },
   {
     id: 3,
+    question: 'Quais serviços te interessam, {name}?',
+    subtitle: 'Pode selecionar mais de um',
+    type: 'multiple',
+    maxSelections: 6,
+    options: [
+      { id: 'armed-guard',        label: 'Vigilância armada',          score: 10 },
+      { id: 'guard',              label: 'Vigilância desarmada',        score: 10 },
+      { id: 'access',             label: 'Controle de acesso',          score: 10 },
+      { id: 'cleaning',           label: 'Limpeza e conservação',       score: 10 },
+      { id: 'maintenance',        label: 'Manutenção predial',          score: 10 },
+      { id: 'reception-portaria', label: 'Recepção / Portaria',         score: 10 },
+    ],
+  },
+  {
+    id: 4,
     question: 'Você já possui algum serviço ativo nessa área?',
     type: 'single',
     options: [
@@ -70,48 +73,53 @@ export const QUIZ_QUESTIONS: QuizQuestion[] = [
     ],
   },
   {
-    id: 4,
-    question: 'Qual é a sua maior preocupação hoje?',
-    type: 'single',
-    options: [
-      { id: 'people',       label: 'Segurança das pessoas (colaboradores, clientes, moradores)', score: 15 },
-      { id: 'assets',       label: 'Proteção do patrimônio',                                    score: 15 },
-      { id: 'access',       label: 'Controle de quem entra e sai',                              score: 15 },
-      { id: 'cost-quality', label: 'Custo e qualidade dos serviços prestados',                  score: 10 },
-      { id: 'compliance',   label: 'Conformidade com normas e regulamentações',                 score: 10 },
-    ],
-  },
-  {
     id: 5,
-    question: 'Onde fica o local que precisa de atendimento?',
-    subtitle: 'Atendemos Curitiba e Região Metropolitana',
-    type: 'single',
-    options: [
-      { id: 'cwb-center', label: 'Curitiba — Centro e bairros centrais',    score: 15 },
-      { id: 'cwb-zone',   label: 'Curitiba — Demais bairros',               score: 15 },
-      { id: 'metro',      label: 'Região Metropolitana de Curitiba',         score: 12 },
-      { id: 'other-pr',   label: 'Outra cidade do Paraná',   disqualify: true, score: 0 },
-      { id: 'other-state',label: 'Outro estado',             disqualify: true, score: 0 },
-    ],
+    question: 'Como podemos entrar em contato?',
+    subtitle: 'Telefone e e-mail são obrigatórios.',
+    type: 'contact',
+    options: [],
   },
   {
     id: 6,
-    question: 'Quando você precisa que o serviço seja iniciado?',
+    question: 'Onde fica o empreendimento, {name}?',
+    subtitle: 'Atendemos Curitiba e Região Metropolitana',
     type: 'single',
     options: [
-      { id: 'urgent',     label: 'Urgente — preciso em até 30 dias',          score: 30 },
-      { id: 'soon',       label: 'Nos próximos 3 meses',                       score: 20 },
-      { id: 'researching',label: 'Ainda estou pesquisando, sem data definida', score: 10 },
+      { id: 'cwb',         label: 'Curitiba',                         score: 15 },
+      { id: 'metro',       label: 'Região Metropolitana de Curitiba', score: 12 },
+      { id: 'other-pr',    label: 'Outra cidade do Paraná',  disqualify: true, score: 0 },
+      { id: 'other-state', label: 'Outro estado',            disqualify: true, score: 0 },
     ],
   },
   {
     id: 7,
+    question: 'Quando você precisa que o serviço seja iniciado?',
+    type: 'single',
+    options: [
+      { id: 'urgent',      label: 'Urgente — preciso em até 30 dias',          score: 30 },
+      { id: 'soon',        label: 'Nos próximos 3 meses',                       score: 20 },
+      { id: 'researching', label: 'Ainda estou pesquisando, sem data definida', score: 10 },
+    ],
+  },
+  {
+    id: 8,
     question: 'Você é quem decide a contratação?',
     type: 'single',
     options: [
-      { id: 'yes',       label: 'Sim, sou o responsável pela decisão',                   score: 25 },
-      { id: 'influence', label: 'Preciso consultar, mas tenho grande influência',        score: 18 },
+      { id: 'yes',       label: 'Sim, sou o responsável pela decisão',                      score: 25 },
+      { id: 'influence', label: 'Preciso consultar, mas tenho grande influência',            score: 18 },
       { id: 'technical', label: 'Sou responsável técnico — preciso de aprovação financeira', score: 12 },
+    ],
+  },
+  {
+    id: 9,
+    question: 'Como prefere ser contatado, {name}?',
+    type: 'single',
+    options: [
+      { id: 'call',      label: 'Ligação',                     score: 5 },
+      { id: 'whatsapp',  label: 'WhatsApp',                    score: 5 },
+      { id: 'video',     label: 'Reunião por videochamada',    score: 10 },
+      { id: 'email-pref',label: 'E-mail',                      score: 3 },
     ],
   },
 ]
@@ -124,7 +132,7 @@ export function calculateScore(answers: Record<number, string | string[]>): numb
     const qIdx = parseInt(qIdxStr)
     const question = QUIZ_QUESTIONS[qIdx]
     if (!question) continue
-
+    if (question.type === 'text' || question.type === 'contact') continue
     const ids = Array.isArray(answer) ? answer : [answer]
     for (const id of ids) {
       const option = question.options.find(o => o.id === id)
@@ -135,16 +143,16 @@ export function calculateScore(answers: Record<number, string | string[]>): numb
 }
 
 export function isDisqualified(answers: Record<number, string | string[]>): boolean {
-  const locationAnswer = answers[5]
+  const locationAnswer = answers[6]
   if (!locationAnswer) return false
   const id = Array.isArray(locationAnswer) ? locationAnswer[0] : locationAnswer
-  const option = QUIZ_QUESTIONS[5].options.find(o => o.id === id)
+  const option = QUIZ_QUESTIONS[6].options.find(o => o.id === id)
   return option?.disqualify === true
 }
 
 export function getLeadLabel(score: number): 'hot' | 'warm' | 'cold' {
-  if (score >= 120) return 'hot'
-  if (score >= 80)  return 'warm'
+  if (score >= 100) return 'hot'
+  if (score >= 60)  return 'warm'
   return 'cold'
 }
 
@@ -154,10 +162,11 @@ export function buildAnswerSummary(answers: Record<number, string | string[]>): 
     const qIdx = parseInt(qIdxStr)
     const question = QUIZ_QUESTIONS[qIdx]
     if (!question) continue
-
+    if (question.type === 'text' || question.type === 'contact') continue
     const ids = Array.isArray(answer) ? answer : [answer]
     const labels = ids.map(id => question.options.find(o => o.id === id)?.label ?? id)
-    lines.push(`${question.question}: ${labels.join(', ')}`)
+    const questionText = question.question.replace(/\{name\}/g, '').trim().replace(/,\s*$/, '')
+    lines.push(`${questionText}: ${labels.join(', ')}`)
   }
   return lines.join(' | ')
 }

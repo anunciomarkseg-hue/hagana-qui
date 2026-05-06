@@ -9,7 +9,7 @@ import { trackLeadSubmit } from '@/lib/tracking'
 import { getStoredUTMs } from '@/lib/utm'
 import { FormData } from '@/components/quiz/QuizContainer'
 
-const CALENDAR_URL = process.env.NEXT_PUBLIC_CALENDAR_URL || '#'
+const CALENDAR_URL = process.env.NEXT_PUBLIC_CALENDAR_URL || 'https://calendly.com/erick-bonjorno-hagana'
 
 interface QuizResultProps {
   answers: Record<number, string | string[]>

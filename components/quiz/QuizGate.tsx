@@ -82,7 +82,8 @@ export default function QuizGate({ onContinue }: QuizGateProps) {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.4 }}
-        className="text-[rgba(240,244,241,0.3)] text-xs"
+        className="text-xs"
+        style={{ color: '#F5C800' }}
       >
         Candidatos serão direcionados ao WhatsApp do Recrutamento e seleção
       </motion.p>

@@ -93,28 +93,9 @@ export default function QuizResult({ answers, score, formData }: QuizResultProps
           transition={{ delay: 0.2 }}
           className="text-[rgba(240,244,241,0.55)] text-sm"
         >
-          Nossa equipe vai entrar em contato com você, {formData.name}.
+          {formData.name}, recebemos suas informações. Um de nossos especialistas entrará em contato para apresentar uma solução personalizada para o seu empreendimento.
         </motion.p>
       </div>
-
-      {/* Resumo das respostas */}
-      <GlassCard className="p-4">
-        <p className="text-[rgba(240,244,241,0.4)] text-xs uppercase tracking-widest mb-3">Seu perfil</p>
-        <div className="flex flex-col gap-2">
-          {SUMMARY_QUESTIONS.filter(i => answers[i]).map(i => (
-            <div key={i} className="flex items-start gap-2">
-              <span className="text-[#2DB84B] mt-0.5 flex-shrink-0">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
-              </span>
-              <span className="text-[rgba(240,244,241,0.7)] text-xs leading-relaxed">
-                {getAnswerLabel(i, answers[i])}
-              </span>
-            </div>
-          ))}
-        </div>
-      </GlassCard>
 
       {/* Agendar reunião */}
       <motion.div
@@ -124,7 +105,7 @@ export default function QuizResult({ answers, score, formData }: QuizResultProps
         className="flex flex-col gap-3"
       >
         <p className="text-[rgba(240,244,241,0.7)] text-sm font-medium text-center">
-          Quer adiantar? Agende agora mesmo:
+          Prefere adiantar o atendimento?
         </p>
 
         <a
@@ -133,7 +114,7 @@ export default function QuizResult({ answers, score, formData }: QuizResultProps
           rel="noopener noreferrer"
           className="btn-primary w-full flex items-center justify-center gap-2 px-6 py-4 rounded-xl font-semibold text-white text-base"
         >
-          Agendar uma reunião agora
+          Agende uma reunião agora
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
             <line x1="16" y1="2" x2="16" y2="6" />

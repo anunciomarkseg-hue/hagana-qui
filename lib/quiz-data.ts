@@ -41,7 +41,6 @@ export const QUIZ_QUESTIONS: QuizQuestion[] = [
   {
     id: 2,
     question: 'E qual o seu nome?',
-    subtitle: 'A partir daqui, vamos personalizar sua análise.',
     type: 'text',
     placeholder: 'Seu nome completo',
     fieldKey: 'name',
@@ -102,12 +101,12 @@ export const QUIZ_QUESTIONS: QuizQuestion[] = [
   },
   {
     id: 8,
-    question: 'Você é quem decide a contratação?',
+    question: 'Sua atuação na contratação?',
     type: 'single',
     options: [
-      { id: 'yes',       label: 'Sim, sou o responsável pela decisão',                      score: 25 },
-      { id: 'influence', label: 'Preciso consultar, mas tenho grande influência',            score: 18 },
-      { id: 'technical', label: 'Sou responsável técnico — preciso de aprovação financeira', score: 12 },
+      { id: 'yes',       label: 'Sou Sindico e responsável pela decisão.',                                     score: 25 },
+      { id: 'influence', label: 'Sou Conselheiro, preciso consultar mas tenho grande influência',              score: 18 },
+      { id: 'technical', label: 'Sou Gestor de Contratos responsável técnico e preciso de aprovação financeira.', score: 12 },
     ],
   },
   {

@@ -73,8 +73,8 @@ export default function QuizIntro({ onStart }: QuizIntroProps) {
           </svg>
         </GlowButton>
 
-        <p className="text-[rgba(240,244,241,0.6)] text-xs mt-3">
-          Grupo Haganá Paraná · Curitiba e Região Metropolitana
+        <p className="text-[rgba(240,244,241,0.6)] text-xs mt-3 whitespace-nowrap">
+          Grupo Haganá Paraná – Curitiba e Região Metropolitana
         </p>
       </motion.div>
     </motion.div>

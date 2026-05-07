@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gh pr create --title 'feat: ajustes de layout e conteúdo do quiz' --body ' *)"
+    ]
+  }
+}

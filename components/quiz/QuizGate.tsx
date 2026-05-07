@@ -46,7 +46,7 @@ export default function QuizGate({ onContinue }: QuizGateProps) {
           Antes de começar...
         </h2>
         <p className="text-[rgba(240,244,241,0.65)] text-sm sm:text-base max-w-xs mx-auto leading-relaxed">
-          Esse quiz é exclusivo para quem deseja contratar a Haganá.
+          Qual o motivo do seu contato?
         </p>
       </motion.div>
 

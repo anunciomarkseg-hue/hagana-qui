@@ -208,7 +208,7 @@ function DisqualifiedScreen() {
       <div className="space-y-2">
         <h2 className="text-2xl font-bold text-white">Fora da nossa área de atendimento</h2>
         <p className="text-[rgba(240,244,241,0.55)] text-sm leading-relaxed max-w-xs mx-auto">
-          No momento atendemos apenas Curitiba e Região Metropolitana. Se precisar, entre em contato pelo site.
+          A opção selecionada exige uma análise diferenciada do time de especialistas da Haganá. Clique abaixo e entre em contato diretamente conosco.
         </p>
       </div>
 
@@ -218,7 +218,7 @@ function DisqualifiedScreen() {
         rel="noopener noreferrer"
         className="btn-secondary flex items-center gap-2 px-6 py-3 rounded-xl text-sm text-[rgba(240,244,241,0.7)] font-medium"
       >
-        Falar com o Grupo Haganá Paraná
+        Quero Falar com time Comercial
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
           <polyline points="15 3 21 3 21 9" />

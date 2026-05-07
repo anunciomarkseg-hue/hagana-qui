@@ -30,14 +30,14 @@ export function trackQuizComplete(score: number, label: string) {
 export function trackLeadSubmit() {
   if (typeof window === 'undefined') return
   window.fbq?.('track', 'Lead')
-  window.gtag?.('event', 'conversion', { send_to: 'AW-CONVERSION_ID/CONVERSION_LABEL' })
+  window.gtag?.('event', 'conversion', { send_to: 'AW-11323869943/OZTzCJeWn4YbEPeV0pcq' })
   window.dataLayer?.push({ event: 'lead_submit' })
 }
 
 export function trackConversion() {
   if (typeof window === 'undefined') return
   window.fbq?.('track', 'Lead')
-  window.gtag?.('event', 'conversion', { send_to: 'AW-CONVERSION_ID/CONVERSION_LABEL' })
+  window.gtag?.('event', 'conversion', { send_to: 'AW-11323869943/OZTzCJeWn4YbEPeV0pcq' })
   window.dataLayer?.push({ event: 'conversion_obrigado' })
 }
 

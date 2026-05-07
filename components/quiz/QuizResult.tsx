@@ -97,6 +97,31 @@ export default function QuizResult({ answers, score, formData }: QuizResultProps
         </motion.p>
       </div>
 
+      {/* Resumo das respostas */}
+      <GlassCard className="p-4">
+        <p className="text-[rgba(240,244,241,0.4)] text-xs uppercase tracking-widest mb-3">Seu perfil</p>
+        <div className="flex flex-col gap-2">
+          {SUMMARY_QUESTIONS.filter(i => answers[i]).map((i, idx) => (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.2 + idx * 0.08 }}
+              className="flex items-start gap-2"
+            >
+              <span className="text-[#2DB84B] mt-0.5 flex-shrink-0">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              </span>
+              <span className="text-[rgba(240,244,241,0.7)] text-xs leading-relaxed">
+                {getAnswerLabel(i, answers[i])}
+              </span>
+            </motion.div>
+          ))}
+        </div>
+      </GlassCard>
+
       {/* Agendar reunião */}
       <motion.div
         initial={{ opacity: 0, y: 12 }}

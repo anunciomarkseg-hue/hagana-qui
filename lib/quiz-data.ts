@@ -85,8 +85,8 @@ export const QUIZ_QUESTIONS: QuizQuestion[] = [
     options: [
       { id: 'cwb',         label: 'Curitiba',                         score: 15 },
       { id: 'metro',       label: 'Região Metropolitana de Curitiba', score: 12 },
-      { id: 'other-pr',    label: 'Outra cidade do Paraná',  disqualify: true, score: 0 },
-      { id: 'other-state', label: 'Outro estado',            disqualify: true, score: 0 },
+      { id: 'other-pr',    label: 'Outra cidade do Paraná',  score: 5 },
+      { id: 'other-state', label: 'Outro estado',            score: 5 },
     ],
   },
   {
@@ -140,12 +140,8 @@ export function calculateScore(answers: Record<number, string | string[]>): numb
   return total
 }
 
-export function isDisqualified(answers: Record<number, string | string[]>): boolean {
-  const locationAnswer = answers[6]
-  if (!locationAnswer) return false
-  const id = Array.isArray(locationAnswer) ? locationAnswer[0] : locationAnswer
-  const option = QUIZ_QUESTIONS[6].options.find(o => o.id === id)
-  return option?.disqualify === true
+export function isDisqualified(_answers: Record<number, string | string[]>): boolean {
+  return false
 }
 
 export function getLeadLabel(score: number): 'hot' | 'warm' | 'cold' {

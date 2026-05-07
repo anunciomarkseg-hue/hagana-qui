@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-
-// TODO: Configure your RD Station token in .env.local:
-// RD_TOKEN=seu_token_aqui
-// Get it at: app.rdstation.com.br → Integrações → API
+import { createHash } from 'crypto'
 
 interface UTMData {
   source?: string
@@ -23,10 +20,22 @@ interface LeadPayload {
   utm?: UTMData
 }
 
+// SHA-256 hash exigido pela Meta CAPI
+function hash(value: string): string {
+  return createHash('sha256').update(value.trim().toLowerCase()).digest('hex')
+}
+
+function normalizePhone(phone: string): string {
+  // Remove tudo que não é dígito e garante código do país
+  const digits = phone.replace(/\D/g, '')
+  return digits.startsWith('55') ? digits : `55${digits}`
+}
+
+// ─── RD Station ───────────────────────────────────────────────────────────────
 async function sendToRDStation(data: LeadPayload) {
   const token = process.env.RD_TOKEN
   if (!token) {
-    console.warn('[RD Station] RD_TOKEN not configured — skipping CRM sync')
+    console.warn('[RD Station] RD_TOKEN not configured — skipping')
     return
   }
 
@@ -53,9 +62,7 @@ async function sendToRDStation(data: LeadPayload) {
 
   const res = await fetch(`https://api.rd.services/platform/conversions?api_key=${token}`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   })
 
@@ -65,6 +72,59 @@ async function sendToRDStation(data: LeadPayload) {
   }
 }
 
+// ─── Meta Conversions API ─────────────────────────────────────────────────────
+async function sendToMetaCAPI(data: LeadPayload) {
+  const token   = process.env.META_CAPI_TOKEN
+  const pixelId = process.env.META_PIXEL_ID || '724771557389668'
+
+  if (!token) {
+    console.warn('[Meta CAPI] META_CAPI_TOKEN not configured — skipping')
+    return
+  }
+
+  const [firstName, ...rest] = data.name.trim().split(' ')
+  const lastName = rest.join(' ') || firstName
+
+  const payload = {
+    data: [
+      {
+        event_name: 'Lead',
+        event_time: Math.floor(Date.now() / 1000),
+        action_source: 'website',
+        user_data: {
+          em: [hash(data.email)],
+          ph: [hash(normalizePhone(data.phone))],
+          fn: [hash(firstName)],
+          ln: [hash(lastName)],
+        },
+        custom_data: {
+          value: data.score,
+          currency: 'BRL',
+          lead_label: data.label,
+        },
+      },
+    ],
+  }
+
+  const res = await fetch(
+    `https://graph.facebook.com/v19.0/${pixelId}/events?access_token=${token}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }
+  )
+
+  if (!res.ok) {
+    const err = await res.text()
+    throw new Error(`Meta CAPI error ${res.status}: ${err}`)
+  }
+
+  const result = await res.json()
+  console.log('[Meta CAPI] Eventos enviados:', result.events_received)
+}
+
+// ─── Handler ──────────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
   try {
     const data: LeadPayload = await req.json()
@@ -73,7 +133,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Campos obrigatórios ausentes' }, { status: 400 })
     }
 
-    await sendToRDStation(data)
+    // Dispara RD Station e Meta CAPI em paralelo
+    await Promise.allSettled([
+      sendToRDStation(data),
+      sendToMetaCAPI(data),
+    ])
 
     console.log('[Lead]', {
       name: data.name,

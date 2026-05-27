@@ -1,14 +1,8 @@
 'use client'
 
-import { useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { trackConversion } from '@/lib/tracking'
 
 export default function Obrigado() {
-  useEffect(() => {
-    trackConversion()
-  }, [])
-
   return (
     <main className="relative min-h-dvh flex items-center justify-center p-4 bg-hagana-dark overflow-hidden">
       <div className="bg-orb bg-orb-1" />

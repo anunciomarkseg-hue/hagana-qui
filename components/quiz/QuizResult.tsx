@@ -6,7 +6,7 @@ import { QUIZ_QUESTIONS, getLeadLabel, buildAnswerSummary } from '@/lib/quiz-dat
 import GlowButton from '@/components/ui/GlowButton'
 import GlassCard from '@/components/ui/GlassCard'
 import { trackLeadSubmit } from '@/lib/tracking'
-import { getStoredUTMs } from '@/lib/utm'
+import { getStoredUTMs, getMetaCookies } from '@/lib/utm'
 import { FormData } from '@/components/quiz/QuizContainer'
 
 const CALENDAR_URL = process.env.NEXT_PUBLIC_CALENDAR_URL || 'https://calendly.com/erick-bonjorno-hagana'
@@ -37,6 +37,9 @@ export default function QuizResult({ answers, score, formData }: QuizResultProps
     const summary = buildAnswerSummary(answers)
     const utm = getStoredUTMs()
     const label = getLeadLabel(score)
+    const meta = getMetaCookies()
+    const eventId = crypto.randomUUID()
+    const eventSourceUrl = window.location.href
 
     fetch('/api/leads', {
       method: 'POST',
@@ -50,9 +53,13 @@ export default function QuizResult({ answers, score, formData }: QuizResultProps
         label,
         summary,
         utm,
+        eventId,
+        eventSourceUrl,
+        fbp: meta.fbp,
+        fbc: meta.fbc,
       }),
     })
-      .then(() => trackLeadSubmit())
+      .then(() => trackLeadSubmit(eventId, score))
       .catch(console.error)
   }, [])
 

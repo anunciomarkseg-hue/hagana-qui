@@ -27,18 +27,16 @@ export function trackQuizComplete(score: number, label: string) {
   window.dataLayer?.push({ event: 'quiz_complete', score, label })
 }
 
-export function trackLeadSubmit() {
+export function trackLeadSubmit(eventId: string, value: number) {
   if (typeof window === 'undefined') return
-  window.fbq?.('track', 'Lead')
+  window.fbq?.(
+    'track',
+    'Lead',
+    { value, currency: 'BRL' },
+    { eventID: eventId }
+  )
   window.gtag?.('event', 'conversion', { send_to: 'AW-11323869943/OZTzCJeWn4YbEPeV0pcq' })
-  window.dataLayer?.push({ event: 'lead_submit' })
-}
-
-export function trackConversion() {
-  if (typeof window === 'undefined') return
-  window.fbq?.('track', 'Lead')
-  window.gtag?.('event', 'conversion', { send_to: 'AW-11323869943/OZTzCJeWn4YbEPeV0pcq' })
-  window.dataLayer?.push({ event: 'conversion_obrigado' })
+  window.dataLayer?.push({ event: 'lead_submit', value })
 }
 
 export function trackDisqualified(reason: string) {

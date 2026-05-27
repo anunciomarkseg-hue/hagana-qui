@@ -18,6 +18,15 @@ interface LeadPayload {
   label: string
   summary: string
   utm?: UTMData
+  eventId?: string
+  eventSourceUrl?: string
+  fbp?: string
+  fbc?: string
+}
+
+interface MetaContext {
+  ip?: string
+  userAgent?: string
 }
 
 // SHA-256 hash exigido pela Meta CAPI
@@ -73,7 +82,7 @@ async function sendToRDStation(data: LeadPayload) {
 }
 
 // ─── Meta Conversions API ─────────────────────────────────────────────────────
-async function sendToMetaCAPI(data: LeadPayload) {
+async function sendToMetaCAPI(data: LeadPayload, ctx: MetaContext) {
   const token   = process.env.META_CAPI_TOKEN
   const pixelId = process.env.META_PIXEL_ID || '724771557389668'
 
@@ -85,18 +94,26 @@ async function sendToMetaCAPI(data: LeadPayload) {
   const [firstName, ...rest] = data.name.trim().split(' ')
   const lastName = rest.join(' ') || firstName
 
+  const userData: Record<string, unknown> = {
+    em: [hash(data.email)],
+    ph: [hash(normalizePhone(data.phone))],
+    fn: [hash(firstName)],
+    ln: [hash(lastName)],
+  }
+  if (ctx.ip)          userData.client_ip_address = ctx.ip
+  if (ctx.userAgent)   userData.client_user_agent = ctx.userAgent
+  if (data.fbp)        userData.fbp = data.fbp
+  if (data.fbc)        userData.fbc = data.fbc
+
   const payload = {
     data: [
       {
         event_name: 'Lead',
         event_time: Math.floor(Date.now() / 1000),
         action_source: 'website',
-        user_data: {
-          em: [hash(data.email)],
-          ph: [hash(normalizePhone(data.phone))],
-          fn: [hash(firstName)],
-          ln: [hash(lastName)],
-        },
+        ...(data.eventId        && { event_id: data.eventId }),
+        ...(data.eventSourceUrl && { event_source_url: data.eventSourceUrl }),
+        user_data: userData,
         custom_data: {
           value: data.score,
           currency: 'BRL',
@@ -133,10 +150,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Campos obrigatórios ausentes' }, { status: 400 })
     }
 
+    const ip = (req.headers.get('x-forwarded-for') ?? '').split(',')[0].trim()
+            || req.headers.get('x-real-ip')
+            || undefined
+    const userAgent = req.headers.get('user-agent') ?? undefined
+
     // Dispara RD Station e Meta CAPI em paralelo
     await Promise.allSettled([
       sendToRDStation(data),
-      sendToMetaCAPI(data),
+      sendToMetaCAPI(data, { ip, userAgent }),
     ])
 
     console.log('[Lead]', {

@@ -86,6 +86,24 @@ function normalizePhone(phone: string): string {
   return digits.startsWith('55') ? digits : `55${digits}`
 }
 
+// Diagnóstico: confere token, campos resolvidos e dono — sem expor o token
+export async function debugRDCRM() {
+  const token = process.env.RD_CRM_TOKEN
+  if (!token) return { tokenSet: false }
+  cache = null // força resolução fresca no debug
+  try {
+    const { fields, userId } = await resolve(token)
+    return {
+      tokenSet: true,
+      fieldsFound: fields.map(f => f.from),
+      fieldCount: fields.length,
+      ownerResolved: Boolean(userId),
+    }
+  } catch (err) {
+    return { tokenSet: true, error: String(err).slice(0, 500) }
+  }
+}
+
 export async function sendToRDCRM(lead: CrmLead): Promise<{ status: 'success' | 'skipped' }> {
   const token = process.env.RD_CRM_TOKEN
   if (!token) {

@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createHash } from 'crypto'
+import { getSupabaseAdmin } from '@/lib/supabase'
+import { sendToRDCRM } from '@/lib/rd-crm'
 
 interface UTMData {
   source?: string
@@ -17,11 +19,15 @@ interface LeadPayload {
   score: number
   label: string
   summary: string
+  answers?: Record<string, unknown>
   utm?: UTMData
   eventId?: string
   eventSourceUrl?: string
+  sessionId?: string
   fbp?: string
   fbc?: string
+  fbclid?: string
+  gclid?: string
 }
 
 interface MetaContext {
@@ -45,7 +51,7 @@ async function sendToRDStation(data: LeadPayload) {
   const token = process.env.RD_TOKEN
   if (!token) {
     console.warn('[RD Station] RD_TOKEN not configured — skipping')
-    return
+    return { status: 'skipped' as const }
   }
 
   const body = {
@@ -79,6 +85,7 @@ async function sendToRDStation(data: LeadPayload) {
     const err = await res.text()
     throw new Error(`RD Station error ${res.status}: ${err}`)
   }
+  return { status: 'success' as const }
 }
 
 // ─── Meta Conversions API ─────────────────────────────────────────────────────
@@ -88,7 +95,7 @@ async function sendToMetaCAPI(data: LeadPayload, ctx: MetaContext) {
 
   if (!token) {
     console.warn('[Meta CAPI] META_CAPI_TOKEN not configured — skipping')
-    return
+    return { status: 'skipped' as const }
   }
 
   const [firstName, ...rest] = data.name.trim().split(' ')
@@ -139,6 +146,69 @@ async function sendToMetaCAPI(data: LeadPayload, ctx: MetaContext) {
 
   const result = await res.json()
   console.log('[Meta CAPI] Eventos enviados:', result.events_received)
+  return { status: 'success' as const }
+}
+
+// ─── Supabase: insere lead em quiz_leads ─────────────────────────────────────
+async function insertQuizLead(data: LeadPayload, ctx: MetaContext) {
+  const supabase = getSupabaseAdmin()
+  if (!supabase) return null
+  if (!data.sessionId || !data.eventId) {
+    console.warn('[Supabase] sessionId ou eventId ausente — pulando insert em quiz_leads')
+    return null
+  }
+
+  const { data: row, error } = await supabase
+    .from('quiz_leads')
+    .insert({
+      session_id:   data.sessionId,
+      event_id:     data.eventId,
+      email:        data.email,
+      nome:         data.name,
+      telefone:     data.phone,
+      empresa:      data.company ?? null,
+      score:        data.score,
+      label:        data.label,
+      answers:      data.answers ?? {},
+      summary:      data.summary,
+      utm_source:   data.utm?.source   ?? null,
+      utm_medium:   data.utm?.medium   ?? null,
+      utm_campaign: data.utm?.campaign ?? null,
+      utm_content:  data.utm?.content  ?? null,
+      utm_term:     data.utm?.term     ?? null,
+      fbclid:       data.fbclid ?? null,
+      gclid:        data.gclid  ?? null,
+      fbp:          data.fbp    ?? null,
+      fbc:          data.fbc    ?? null,
+      ip:           ctx.ip      ?? null,
+      user_agent:   ctx.userAgent ?? null,
+      capi_status:  'pending',
+      rd_status:    'pending',
+    })
+    .select('id')
+    .single()
+
+  if (error) {
+    console.error('[Supabase] insert quiz_leads failed:', error.message)
+    return null
+  }
+  return row?.id ?? null
+}
+
+async function updateQuizLeadStatus(
+  leadId: number | null,
+  capi: { status: string; error?: string },
+  rd:   { status: string; error?: string }
+) {
+  if (leadId == null) return
+  const supabase = getSupabaseAdmin()
+  if (!supabase) return
+  await supabase.from('quiz_leads').update({
+    capi_status: capi.status,
+    capi_error:  capi.error ?? null,
+    rd_status:   rd.status,
+    rd_error:    rd.error  ?? null,
+  }).eq('id', leadId)
 }
 
 // ─── Handler ──────────────────────────────────────────────────────────────────
@@ -154,18 +224,46 @@ export async function POST(req: NextRequest) {
             || req.headers.get('x-real-ip')
             || undefined
     const userAgent = req.headers.get('user-agent') ?? undefined
+    const ctx: MetaContext = { ip, userAgent }
 
-    // Dispara RD Station e Meta CAPI em paralelo
-    await Promise.allSettled([
+    // 1. Insere lead no Supabase ANTES (independente de integrações externas)
+    //    Se Supabase falhar, leadId fica null e seguimos sem auditoria — não bloqueia
+    const leadId = await insertQuizLead(data, ctx).catch(err => {
+      console.error('[Supabase] insertQuizLead exception:', err)
+      return null
+    })
+
+    // 2. Dispara RD Station, Meta CAPI e RD CRM em paralelo
+    const [rdResult, capiResult, crmResult] = await Promise.allSettled([
       sendToRDStation(data),
-      sendToMetaCAPI(data, { ip, userAgent }),
+      sendToMetaCAPI(data, ctx),
+      sendToRDCRM(data),
     ])
+
+    if (crmResult.status === 'rejected') {
+      console.error('[RD CRM] falhou:', String(crmResult.reason).slice(0, 500))
+    }
+
+    // 3. Atualiza status no Supabase pra auditoria (fire-and-forget)
+    const rdStatus = rdResult.status === 'fulfilled'
+      ? { status: rdResult.value.status }
+      : { status: 'failed', error: String(rdResult.reason).slice(0, 500) }
+
+    const capiStatus = capiResult.status === 'fulfilled'
+      ? { status: capiResult.value.status }
+      : { status: 'failed', error: String(capiResult.reason).slice(0, 500) }
+
+    updateQuizLeadStatus(leadId, capiStatus, rdStatus).catch(() => {})
 
     console.log('[Lead]', {
       name: data.name,
       email: data.email,
       score: data.score,
       label: data.label,
+      leadId,
+      rd: rdStatus.status,
+      capi: capiStatus.status,
+      crm: crmResult.status === 'fulfilled' ? crmResult.value.status : 'failed',
       ts: new Date().toISOString(),
     })
 

@@ -156,11 +156,18 @@ export function buildAnswerSummary(answers: Record<number, string | string[]>): 
     const qIdx = parseInt(qIdxStr)
     const question = QUIZ_QUESTIONS[qIdx]
     if (!question) continue
-    if (question.type === 'text' || question.type === 'contact') continue
-    const ids = Array.isArray(answer) ? answer : [answer]
-    const labels = ids.map(id => question.options.find(o => o.id === id)?.label ?? id)
-    const questionText = question.question.replace(/\{name\}/g, '').trim().replace(/,\s*$/, '')
-    lines.push(`${questionText}: ${labels.join(', ')}`)
+    // Contato (telefone/email) já vai em campos padrão do RD — não duplica no resumo
+    if (question.type === 'contact') continue
+    const questionText = question.question.replace(/\{name\}/g, '').trim().replace(/[\s,?]+$/, '')
+    let valueText: string
+    if (question.type === 'text') {
+      valueText = Array.isArray(answer) ? answer.join(', ') : String(answer)
+    } else {
+      const ids = Array.isArray(answer) ? answer : [answer]
+      valueText = ids.map(id => question.options.find(o => o.id === id)?.label ?? id).join(', ')
+    }
+    if (!valueText.trim()) continue
+    lines.push(`${questionText}: ${valueText}`)
   }
   return lines.join(' | ')
 }

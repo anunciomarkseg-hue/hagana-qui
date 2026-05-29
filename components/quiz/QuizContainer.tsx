@@ -1,13 +1,20 @@
 'use client'
 
-import { useReducer, useCallback, useState } from 'react'
+import { useReducer, useCallback, useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   QUIZ_QUESTIONS,
   calculateScore,
   isDisqualified,
 } from '@/lib/quiz-data'
-import { trackQuizStart, trackQuizStep, trackQuizComplete, trackDisqualified } from '@/lib/tracking'
+import {
+  trackQuizStart,
+  trackQuizStep,
+  trackQuizComplete,
+  trackDisqualified,
+  trackPageView,
+  trackGatePass,
+} from '@/lib/tracking'
 import QuizIntro from './QuizIntro'
 import QuizGate from './QuizGate'
 import QuizQuestion from './QuizQuestion'
@@ -79,12 +86,18 @@ export default function QuizContainer() {
   const [state, dispatch] = useReducer(reducer, initial)
   const [formData, setFormData] = useState<FormData>({ name: '', company: '', phone: '', email: '' })
 
+  // PageView interno (Pixel browser já dispara automático no layout)
+  useEffect(() => {
+    trackPageView()
+  }, [])
+
   const handleStart = useCallback(() => {
     trackQuizStart()
     dispatch({ type: 'START' })
   }, [])
 
   const handleGatePass = useCallback(() => {
+    trackGatePass()
     dispatch({ type: 'GATE_PASS' })
   }, [])
 
@@ -100,7 +113,7 @@ export default function QuizContainer() {
       setFormData(prev => ({ ...prev, phone: phone ?? '', email: email ?? '' }))
     }
 
-    trackQuizStep(state.questionIndex + 1, QUIZ_QUESTIONS.length)
+    trackQuizStep(state.questionIndex + 1, QUIZ_QUESTIONS.length, question.id, answer)
     dispatch({ type: 'ANSWER', questionIndex: state.questionIndex, answer })
   }, [state.questionIndex])
 

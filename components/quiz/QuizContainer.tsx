@@ -1,15 +1,19 @@
 'use client'
 
-import { useReducer, useCallback, useEffect, useState } from 'react'
+import { useReducer, useCallback, useEffect, useState, useRef } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   QUIZ_QUESTIONS,
   calculateScore,
   isDisqualified,
+  getLeadLabel,
+  buildAnswerSummary,
 } from '@/lib/quiz-data'
+import { submitPartialLead } from '@/lib/lead'
 import {
   trackQuizStart,
   trackQuizStep,
+  trackQuizContact,
   trackQuizComplete,
   trackDisqualified,
   trackPageView,
@@ -85,6 +89,7 @@ const initial: State = {
 export default function QuizContainer() {
   const [state, dispatch] = useReducer(reducer, initial)
   const [formData, setFormData] = useState<FormData>({ name: '', company: '', phone: '', email: '' })
+  const partialSentRef = useRef(false)
 
   // PageView interno (Pixel browser já dispara automático no layout)
   useEffect(() => {
@@ -105,17 +110,41 @@ export default function QuizContainer() {
     const question = QUIZ_QUESTIONS[state.questionIndex]
 
     // Extract form data from text / contact questions
+    let contactInfo: { phone: string; email: string; name: string } | null = null
     if (question.type === 'text' && question.fieldKey && typeof answer === 'string') {
       setFormData(prev => ({ ...prev, [question.fieldKey!]: answer }))
     }
     if (question.type === 'contact' && typeof answer === 'string') {
       const [phone, email] = answer.split('::')
       setFormData(prev => ({ ...prev, phone: phone ?? '', email: email ?? '' }))
+      contactInfo = { phone: phone ?? '', email: email ?? '', name: formData.name }
     }
 
     trackQuizStep(state.questionIndex + 1, QUIZ_QUESTIONS.length, question.id, answer)
+    // Marco de contato: telefone + e-mail capturados (alta intenção, mais volume
+    // que o Lead final) — dispara Contact no Pixel + CAPI e salva o lead parcial.
+    if (contactInfo) {
+      trackQuizContact(contactInfo)
+      // Lead parcial → Supabase + RD CRM já aqui, pra não perder quem abandona
+      // antes de concluir. Dispara uma única vez por sessão.
+      if (!partialSentRef.current) {
+        partialSentRef.current = true
+        const answersNow = { ...state.answers, [state.questionIndex]: answer }
+        const partialScore = calculateScore(answersNow)
+        submitPartialLead({
+          name: formData.name,
+          email: contactInfo.email,
+          phone: contactInfo.phone,
+          company: formData.company,
+          score: partialScore,
+          label: getLeadLabel(partialScore),
+          summary: buildAnswerSummary(answersNow),
+          answers: answersNow,
+        })
+      }
+    }
     dispatch({ type: 'ANSWER', questionIndex: state.questionIndex, answer })
-  }, [state.questionIndex])
+  }, [state.questionIndex, state.answers, formData.name, formData.company])
 
   const handleBack = useCallback(() => {
     dispatch({ type: 'BACK' })
@@ -123,9 +152,13 @@ export default function QuizContainer() {
 
   const handleProcessingDone = useCallback(() => {
     const score = calculateScore(state.answers)
-    trackQuizComplete(score, score >= 100 ? 'hot' : score >= 60 ? 'warm' : 'cold')
+    trackQuizComplete(
+      score,
+      score >= 100 ? 'hot' : score >= 60 ? 'warm' : 'cold',
+      { email: formData.email, phone: formData.phone, name: formData.name },
+    )
     dispatch({ type: 'PROCESSING_DONE' })
-  }, [state.answers])
+  }, [state.answers, formData.email, formData.phone, formData.name])
 
   const score = calculateScore(state.answers)
 

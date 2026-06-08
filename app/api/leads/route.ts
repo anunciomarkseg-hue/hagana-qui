@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createHash } from 'crypto'
 import { getSupabaseAdmin } from '@/lib/supabase'
-import { sendToRDCRM } from '@/lib/rd-crm'
+import { sendToRDCRM, updateRDCRMDeal } from '@/lib/rd-crm'
+import { sendCAPIEvent } from '@/lib/meta-capi'
 
 interface UTMData {
   source?: string
@@ -28,22 +28,13 @@ interface LeadPayload {
   fbc?: string
   fbclid?: string
   gclid?: string
+  // true = lead parcial (contato capturado na Q5, quiz ainda não concluído)
+  partial?: boolean
 }
 
 interface MetaContext {
   ip?: string
   userAgent?: string
-}
-
-// SHA-256 hash exigido pela Meta CAPI
-function hash(value: string): string {
-  return createHash('sha256').update(value.trim().toLowerCase()).digest('hex')
-}
-
-function normalizePhone(phone: string): string {
-  // Remove tudo que não é dígito e garante código do país
-  const digits = phone.replace(/\D/g, '')
-  return digits.startsWith('55') ? digits : `55${digits}`
 }
 
 // ─── RD Station ───────────────────────────────────────────────────────────────
@@ -88,103 +79,89 @@ async function sendToRDStation(data: LeadPayload) {
   return { status: 'success' as const }
 }
 
-// ─── Meta Conversions API ─────────────────────────────────────────────────────
+// ─── Meta Conversions API (evento Lead, deduplicado com o Pixel via event_id) ──
 async function sendToMetaCAPI(data: LeadPayload, ctx: MetaContext) {
-  const token   = process.env.META_CAPI_TOKEN
-  const pixelId = process.env.META_PIXEL_ID || '724771557389668'
-
-  if (!token) {
-    console.warn('[Meta CAPI] META_CAPI_TOKEN not configured — skipping')
-    return { status: 'skipped' as const }
-  }
-
   const [firstName, ...rest] = data.name.trim().split(' ')
   const lastName = rest.join(' ') || firstName
 
-  const userData: Record<string, unknown> = {
-    em: [hash(data.email)],
-    ph: [hash(normalizePhone(data.phone))],
-    fn: [hash(firstName)],
-    ln: [hash(lastName)],
-  }
-  if (ctx.ip)          userData.client_ip_address = ctx.ip
-  if (ctx.userAgent)   userData.client_user_agent = ctx.userAgent
-  if (data.fbp)        userData.fbp = data.fbp
-  if (data.fbc)        userData.fbc = data.fbc
-
-  const payload = {
-    data: [
-      {
-        event_name: 'Lead',
-        event_time: Math.floor(Date.now() / 1000),
-        action_source: 'website',
-        ...(data.eventId        && { event_id: data.eventId }),
-        ...(data.eventSourceUrl && { event_source_url: data.eventSourceUrl }),
-        user_data: userData,
-        custom_data: {
-          value: data.score,
-          currency: 'BRL',
-          lead_label: data.label,
-        },
-      },
-    ],
-  }
-
-  const res = await fetch(
-    `https://graph.facebook.com/v19.0/${pixelId}/events?access_token=${token}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    }
-  )
-
-  if (!res.ok) {
-    const err = await res.text()
-    throw new Error(`Meta CAPI error ${res.status}: ${err}`)
-  }
-
-  const result = await res.json()
-  console.log('[Meta CAPI] Eventos enviados:', result.events_received)
-  return { status: 'success' as const }
+  return sendCAPIEvent({
+    eventName: 'Lead',
+    eventId: data.eventId,
+    eventSourceUrl: data.eventSourceUrl,
+    customData: { value: data.score, currency: 'BRL', lead_label: data.label },
+    user: {
+      email: data.email,
+      phone: data.phone,
+      firstName,
+      lastName,
+      fbp: data.fbp,
+      fbc: data.fbc,
+      ip: ctx.ip,
+      userAgent: ctx.userAgent,
+    },
+  })
 }
 
-// ─── Supabase: insere lead em quiz_leads ─────────────────────────────────────
-async function insertQuizLead(data: LeadPayload, ctx: MetaContext) {
+interface UpsertResult {
+  id: number | null
+  rdCrmDealId: string | null
+  stage: string | null
+}
+
+// ─── Supabase: upsert do lead em quiz_leads (dedup por session_id) ────────────
+// Lead parcial (Q5) insere a linha; o submit final atualiza a MESMA linha em vez
+// de criar outra. Nunca rebaixa stage de 'complete' para 'partial'.
+async function upsertQuizLead(data: LeadPayload, ctx: MetaContext, stage: 'partial' | 'complete'): Promise<UpsertResult | null> {
   const supabase = getSupabaseAdmin()
   if (!supabase) return null
   if (!data.sessionId || !data.eventId) {
-    console.warn('[Supabase] sessionId ou eventId ausente — pulando insert em quiz_leads')
+    console.warn('[Supabase] sessionId ou eventId ausente — pulando quiz_leads')
     return null
+  }
+
+  const { data: existing } = await supabase
+    .from('quiz_leads')
+    .select('id, rd_crm_deal_id, stage')
+    .eq('session_id', data.sessionId)
+    .maybeSingle()
+
+  const fields = {
+    event_id:     data.eventId,
+    email:        data.email,
+    nome:         data.name,
+    telefone:     data.phone,
+    empresa:      data.company ?? null,
+    score:        data.score,
+    label:        data.label,
+    answers:      data.answers ?? {},
+    summary:      data.summary,
+    utm_source:   data.utm?.source   ?? null,
+    utm_medium:   data.utm?.medium   ?? null,
+    utm_campaign: data.utm?.campaign ?? null,
+    utm_content:  data.utm?.content  ?? null,
+    utm_term:     data.utm?.term     ?? null,
+    fbclid:       data.fbclid ?? null,
+    gclid:        data.gclid  ?? null,
+    fbp:          data.fbp    ?? null,
+    fbc:          data.fbc    ?? null,
+    ip:           ctx.ip      ?? null,
+    user_agent:   ctx.userAgent ?? null,
+  }
+
+  if (existing) {
+    // não rebaixa 'complete' → 'partial'
+    const nextStage = existing.stage === 'complete' ? 'complete' : stage
+    const { error } = await supabase
+      .from('quiz_leads')
+      .update({ ...fields, stage: nextStage })
+      .eq('id', existing.id)
+    if (error) console.error('[Supabase] update quiz_leads failed:', error.message)
+    return { id: existing.id, rdCrmDealId: existing.rd_crm_deal_id ?? null, stage: existing.stage ?? null }
   }
 
   const { data: row, error } = await supabase
     .from('quiz_leads')
-    .insert({
-      session_id:   data.sessionId,
-      event_id:     data.eventId,
-      email:        data.email,
-      nome:         data.name,
-      telefone:     data.phone,
-      empresa:      data.company ?? null,
-      score:        data.score,
-      label:        data.label,
-      answers:      data.answers ?? {},
-      summary:      data.summary,
-      utm_source:   data.utm?.source   ?? null,
-      utm_medium:   data.utm?.medium   ?? null,
-      utm_campaign: data.utm?.campaign ?? null,
-      utm_content:  data.utm?.content  ?? null,
-      utm_term:     data.utm?.term     ?? null,
-      fbclid:       data.fbclid ?? null,
-      gclid:        data.gclid  ?? null,
-      fbp:          data.fbp    ?? null,
-      fbc:          data.fbc    ?? null,
-      ip:           ctx.ip      ?? null,
-      user_agent:   ctx.userAgent ?? null,
-      capi_status:  'pending',
-      rd_status:    'pending',
-    })
+    .insert({ session_id: data.sessionId, ...fields, stage, capi_status: 'pending', rd_status: 'pending' })
     .select('id')
     .single()
 
@@ -192,7 +169,14 @@ async function insertQuizLead(data: LeadPayload, ctx: MetaContext) {
     console.error('[Supabase] insert quiz_leads failed:', error.message)
     return null
   }
-  return row?.id ?? null
+  return { id: row?.id ?? null, rdCrmDealId: null, stage: null }
+}
+
+async function setLeadDealId(leadId: number | null, dealId: string) {
+  if (leadId == null) return
+  const supabase = getSupabaseAdmin()
+  if (!supabase) return
+  await supabase.from('quiz_leads').update({ rd_crm_deal_id: dealId }).eq('id', leadId)
 }
 
 async function updateQuizLeadStatus(
@@ -225,26 +209,58 @@ export async function POST(req: NextRequest) {
             || undefined
     const userAgent = req.headers.get('user-agent') ?? undefined
     const ctx: MetaContext = { ip, userAgent }
+    const isPartial = data.partial === true
 
-    // 1. Insere lead no Supabase ANTES (independente de integrações externas)
-    //    Se Supabase falhar, leadId fica null e seguimos sem auditoria — não bloqueia
-    const leadId = await insertQuizLead(data, ctx).catch(err => {
-      console.error('[Supabase] insertQuizLead exception:', err)
-      return null
-    })
-
-    // 2. Dispara RD Station, Meta CAPI e RD CRM em paralelo
-    const [rdResult, capiResult, crmResult] = await Promise.allSettled([
-      sendToRDStation(data),
-      sendToMetaCAPI(data, ctx),
-      sendToRDCRM(data),
-    ])
-
-    if (crmResult.status === 'rejected') {
-      console.error('[RD CRM] falhou:', String(crmResult.reason).slice(0, 500))
+    const crmLead = {
+      name: data.name,
+      email: data.email,
+      phone: data.phone,
+      company: data.company,
+      score: data.score,
+      label: data.label,
+      summary: data.summary,
     }
 
-    // 3. Atualiza status no Supabase pra auditoria (fire-and-forget)
+    // 1. Upsert no Supabase (dedup por session_id). Parcial insere a linha; o
+    //    submit final atualiza a MESMA linha. Não bloqueia se o Supabase falhar.
+    const lead = await upsertQuizLead(data, ctx, isPartial ? 'partial' : 'complete').catch(err => {
+      console.error('[Supabase] upsertQuizLead exception:', err)
+      return null
+    })
+    const leadId = lead?.id ?? null
+
+    // 2. RD CRM — cria a negociação UMA vez (lead parcial da Q5). No final,
+    //    ATUALIZA a mesma negociação em vez de criar outra (evita duplicado).
+    let dealId = lead?.rdCrmDealId ?? null
+    let crmStatus = 'skipped'
+    try {
+      if (!dealId) {
+        const r = await sendToRDCRM(crmLead)
+        crmStatus = r.status
+        if (r.dealId) { dealId = r.dealId; await setLeadDealId(leadId, r.dealId) }
+      } else if (!isPartial) {
+        await updateRDCRMDeal(dealId, crmLead)
+        crmStatus = 'updated'
+      }
+    } catch (err) {
+      crmStatus = 'failed'
+      console.error('[RD CRM] falhou:', String(err).slice(0, 500))
+    }
+
+    // 3. Lead parcial para aqui: SEM RD Station (marketing) e SEM CAPI Lead —
+    //    esses só no submit final. O evento Contact (Pixel + CAPI) já saiu pelo
+    //    /api/events na mesma etapa.
+    if (isPartial) {
+      console.log('[Lead parcial]', { email: data.email, leadId, crm: crmStatus, ts: new Date().toISOString() })
+      return NextResponse.json({ ok: true, partial: true })
+    }
+
+    // 4. Submit final: RD Station + Meta CAPI Lead em paralelo
+    const [rdResult, capiResult] = await Promise.allSettled([
+      sendToRDStation(data),
+      sendToMetaCAPI(data, ctx),
+    ])
+
     const rdStatus = rdResult.status === 'fulfilled'
       ? { status: rdResult.value.status }
       : { status: 'failed', error: String(rdResult.reason).slice(0, 500) }
@@ -263,7 +279,7 @@ export async function POST(req: NextRequest) {
       leadId,
       rd: rdStatus.status,
       capi: capiStatus.status,
-      crm: crmResult.status === 'fulfilled' ? crmResult.value.status : 'failed',
+      crm: crmStatus,
       ts: new Date().toISOString(),
     })
 

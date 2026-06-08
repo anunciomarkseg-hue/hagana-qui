@@ -66,7 +66,11 @@ export default function QuizResult({ answers, score, formData }: QuizResultProps
         gclid: clickIds.gclid,
       }),
     })
-      .then(() => trackLeadSubmit(eventId, score))
+      .then(() => trackLeadSubmit(eventId, score, {
+        email: formData.email,
+        phone: formData.phone,
+        name: formData.name,
+      }))
       .catch(console.error)
   }, [])
 

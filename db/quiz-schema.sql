@@ -11,7 +11,7 @@
 CREATE TABLE IF NOT EXISTS quiz_events (
   id            BIGSERIAL PRIMARY KEY,
   session_id    UUID NOT NULL,
-  event_type    TEXT NOT NULL,          -- page_view | quiz_start | gate_pass | quiz_step | quiz_complete | disqualified | lead_submit
+  event_type    TEXT NOT NULL,          -- page_view | quiz_start | gate_pass | quiz_step | quiz_contact | quiz_complete | disqualified | lead_submit
   step_number   INT,
   question_id   TEXT,
   answer        JSONB,
@@ -86,11 +86,20 @@ CREATE TABLE IF NOT EXISTS quiz_leads (
   created_at    TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Lead parcial: capturado na pergunta de contato (Q5, telefone+e-mail) ANTES de
+-- concluir o quiz, pra não perder quem abandona no meio.
+--   stage          = 'partial' (só contato) | 'complete' (quiz finalizado)
+--   rd_crm_deal_id = id da negociação no RD CRM → no fim ATUALIZA em vez de
+--                    criar de novo (evita deal duplicado pro mesmo contato)
+ALTER TABLE quiz_leads ADD COLUMN IF NOT EXISTS stage          TEXT DEFAULT 'complete';
+ALTER TABLE quiz_leads ADD COLUMN IF NOT EXISTS rd_crm_deal_id TEXT;
+
 CREATE INDEX IF NOT EXISTS idx_quiz_leads_email    ON quiz_leads (email);
 CREATE INDEX IF NOT EXISTS idx_quiz_leads_score    ON quiz_leads (score DESC);
 CREATE INDEX IF NOT EXISTS idx_quiz_leads_label    ON quiz_leads (label);
 CREATE INDEX IF NOT EXISTS idx_quiz_leads_campaign ON quiz_leads (utm_campaign);
 CREATE INDEX IF NOT EXISTS idx_quiz_leads_created  ON quiz_leads (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_quiz_leads_stage    ON quiz_leads (stage);
 
 -- ─── RLS ───────────────────────────────────────────────────────────────────
 -- Mesmo padrão que rd_leads: leitura pública (anon), escrita só via service key

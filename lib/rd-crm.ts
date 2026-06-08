@@ -104,26 +104,30 @@ export async function debugRDCRM() {
   }
 }
 
-export async function sendToRDCRM(lead: CrmLead): Promise<{ status: 'success' | 'skipped' }> {
+function buildCustomFields(token: Resolved, lead: CrmLead) {
+  const valueFor: Record<'score' | 'perfil' | 'respostas', string> = {
+    score: String(lead.score),
+    perfil: lead.label,
+    respostas: lead.summary,
+  }
+  return token.fields.length
+    ? token.fields.map(f => ({ custom_field_id: f.id, value: valueFor[f.from] }))
+    : undefined
+}
+
+export async function sendToRDCRM(lead: CrmLead): Promise<{ status: 'success' | 'skipped'; dealId?: string }> {
   const token = process.env.RD_CRM_TOKEN
   if (!token) {
     console.warn('[RD CRM] RD_CRM_TOKEN não configurado — pulando')
     return { status: 'skipped' }
   }
 
-  const { fields, userId } = await resolve(token)
-
-  const valueFor: Record<'score' | 'perfil' | 'respostas', string> = {
-    score: String(lead.score),
-    perfil: lead.label,
-    respostas: lead.summary,
-  }
+  const resolved = await resolve(token)
+  const customFields = buildCustomFields(resolved, lead)
 
   const deal: Record<string, unknown> = { name: lead.name }
-  if (userId) deal.user_id = userId
-  if (fields.length) {
-    deal.deal_custom_fields = fields.map(f => ({ custom_field_id: f.id, value: valueFor[f.from] }))
-  }
+  if (resolved.userId) deal.user_id = resolved.userId
+  if (customFields) deal.deal_custom_fields = customFields
 
   const body = {
     deal,
@@ -145,6 +149,33 @@ export async function sendToRDCRM(lead: CrmLead): Promise<{ status: 'success' | 
   if (!res.ok) {
     throw new Error(`RD CRM deal ${res.status}: ${(await res.text()).slice(0, 300)}`)
   }
-  console.log('[RD CRM] Negociação criada', { fields: fields.length, owner: userId ? 'Erick' : 'default' })
+  const created = (await res.json().catch(() => null)) as Record<string, unknown> | null
+  const dealId = created ? (created.id ?? created._id) : undefined
+  console.log('[RD CRM] Negociação criada', { dealId, fields: resolved.fields.length, owner: resolved.userId ? 'Erick' : 'default' })
+  return { status: 'success', dealId: dealId ? String(dealId) : undefined }
+}
+
+// Atualiza uma negociação já existente (criada no lead parcial da Q5) com os
+// dados finais do quiz — em vez de criar um deal novo e duplicar no funil.
+export async function updateRDCRMDeal(dealId: string, lead: CrmLead): Promise<{ status: 'success' | 'skipped' }> {
+  const token = process.env.RD_CRM_TOKEN
+  if (!token) return { status: 'skipped' }
+
+  const resolved = await resolve(token)
+  const customFields = buildCustomFields(resolved, lead)
+
+  const deal: Record<string, unknown> = { name: lead.name }
+  if (customFields) deal.deal_custom_fields = customFields
+
+  const res = await fetch(`${CRM_BASE}/deals/${dealId}?token=${token}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ deal }),
+  })
+
+  if (!res.ok) {
+    throw new Error(`RD CRM update ${res.status}: ${(await res.text()).slice(0, 300)}`)
+  }
+  console.log('[RD CRM] Negociação atualizada', { dealId })
   return { status: 'success' }
 }

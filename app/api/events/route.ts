@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase'
+import { sendCAPIEvent } from '@/lib/meta-capi'
 
 interface UTMData {
   source?: string
@@ -21,6 +22,15 @@ interface EventPayload {
   fbclid?: string
   gclid?: string
   referer?: string
+  // ─ Campos usados só para o relay CAPI (NÃO são persistidos em quiz_events) ─
+  metaEvent?: string        // nome do evento Meta a espelhar via CAPI (ex.: Contact)
+  eventId?: string          // mesmo id usado no Pixel → deduplicação
+  eventSourceUrl?: string
+  value?: number
+  currency?: string
+  email?: string            // PII transitória: usada só para hash de match, não gravada
+  phone?: string
+  name?: string
   // pode vir mais coisa em `extra` — ignoramos campos desconhecidos
 }
 
@@ -40,16 +50,42 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, skipped: 'missing_fields' })
   }
 
+  const ip = (req.headers.get('x-forwarded-for') ?? '').split(',')[0].trim()
+          || req.headers.get('x-real-ip')
+          || null
+  const userAgent = req.headers.get('user-agent') ?? null
+
+  // ─── Relay para a Meta CAPI (marcos do funil) ──────────────────────────────
+  // Fire-and-forget. Independe do Supabase. Só dispara quando o front marca o
+  // evento com `metaEvent` (ViewContent, Contact, CompleteRegistration...).
+  // Deduplicado com o Pixel do browser pelo mesmo `eventId`.
+  if (data.metaEvent && process.env.META_CAPI_TOKEN) {
+    const [firstName, ...rest] = (data.name ?? '').trim().split(' ')
+    sendCAPIEvent({
+      eventName: data.metaEvent,
+      eventId: data.eventId,
+      eventSourceUrl: data.eventSourceUrl,
+      customData: data.value != null
+        ? { value: data.value, currency: data.currency || 'BRL' }
+        : undefined,
+      user: {
+        email: data.email,
+        phone: data.phone,
+        firstName: firstName || undefined,
+        lastName: rest.join(' ') || undefined,
+        fbp: data.fbp,
+        fbc: data.fbc,
+        ip: ip ?? undefined,
+        userAgent: userAgent ?? undefined,
+      },
+    }).catch(err => console.error('[api/events] CAPI relay falhou:', String(err).slice(0, 300)))
+  }
+
   const supabase = getSupabaseAdmin()
   if (!supabase) {
     // Banco não configurado — silencia (não bloqueia front)
     return NextResponse.json({ ok: true, skipped: 'no_supabase' })
   }
-
-  const ip = (req.headers.get('x-forwarded-for') ?? '').split(',')[0].trim()
-          || req.headers.get('x-real-ip')
-          || null
-  const userAgent = req.headers.get('user-agent') ?? null
 
   try {
     await supabase.from('quiz_events').insert({

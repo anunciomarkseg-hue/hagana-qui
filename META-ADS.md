@@ -24,32 +24,55 @@ Configuradas em **Production + Preview**:
 | `META_PIXEL_ID` | `724771557389668` |
 | `RD_TOKEN` | RD Station → Integrações → API |
 
-### Eventos disparados pelo quiz
+### Eventos disparados pelo quiz (1 por etapa do funil)
 
-| Evento | Quando dispara | Onde |
-|---|---|---|
-| `PageView` | Carregamento de qualquer página | Pixel browser ([app/layout.tsx](app/layout.tsx)) |
-| `ViewContent` | Início do quiz | [lib/tracking.ts](lib/tracking.ts) `trackQuizStart()` |
-| `CompleteRegistration` | Final do quiz | [lib/tracking.ts](lib/tracking.ts) `trackQuizComplete()` |
-| `Lead` | Submit dos dados | Pixel browser + CAPI server ([app/api/leads/route.ts](app/api/leads/route.ts)) |
+Cada etapa é um evento **nomeado e distinto**. Standard events (`ViewContent`,
+`Contact`, `CompleteRegistration`, `Lead`) usam `fbq('track')`; micro-passos do
+quiz usam `fbq('trackCustom')`. Os marcos que valem otimização também vão por
+**CAPI**, deduplicados com o Pixel pelo mesmo `event_id`.
+
+| Etapa do funil | Evento Pixel | Tipo | CAPI? | Origem |
+|---|---|---|---|---|
+| Carregou a página | `PageView` | track | — | [app/layout.tsx](app/layout.tsx) (auto) |
+| Iniciou o quiz | `ViewContent` (`quiz_start`) | track | ✅ | `trackQuizStart()` |
+| Passou do gate | `QuizGatePass` | trackCustom | — | `trackGatePass()` |
+| Respondeu cada pergunta | `QuizStep` (`step_number`) | trackCustom | — | `trackQuizStep()` |
+| **Forneceu contato (tel+email)** | `Contact` (`quiz_contact`) | track | ✅ | `trackQuizContact()` |
+| Concluiu o quiz | `CompleteRegistration` (`value=score`) | track | ✅ | `trackQuizComplete()` |
+| Enviou o lead | `Lead` (`value=score`) | track | ✅ | Pixel + [app/api/leads/route.ts](app/api/leads/route.ts) |
+| Desqualificado | `QuizDisqualified` (`reason`) | trackCustom | — | `trackDisqualified()` |
+
+> **`Contact` é o marco de otimização recomendado**: dispara quando o usuário dá
+> telefone + e-mail (pergunta de contato, índice 5), ANTES de terminar o quiz —
+> portanto tem **mais volume** que o `Lead` final. Com taxa de conclusão baixa, é
+> o evento com volume suficiente pro algoritmo aprender. Ver §2.
+
+Toda a lógica está em [lib/tracking.ts](lib/tracking.ts). O relay server-side
+genérico (CAPI dos marcos do funil) está em [app/api/events/route.ts](app/api/events/route.ts),
+usando o helper compartilhado [lib/meta-capi.ts](lib/meta-capi.ts).
 
 ### Deduplicação Pixel ↔ CAPI
 
-- Front gera `event_id = crypto.randomUUID()` em [components/quiz/QuizResult.tsx](components/quiz/QuizResult.tsx)
-- Mesmo UUID vai para o Pixel (`{eventID}`) e para o CAPI (`event_id`)
+- Para cada marco, o front gera um `event_id` (`crypto.randomUUID()`) em [lib/tracking.ts](lib/tracking.ts)
+- O mesmo id vai para o Pixel (`{eventID}`) e para o CAPI (`event_id`)
+- Vale para **todos** os marcos (ViewContent, Contact, CompleteRegistration, Lead), não só o Lead
 - Meta consolida em 1 evento único → badge **"Deduplicated"** nos Test Events
+- O `Lead` é enviado por CAPI pelo `/api/leads` (com PII completa); os demais marcos pelo `/api/events`
 
 ### Match Quality (EMQ)
 
-CAPI envia em `user_data`:
-- `em` (email hash SHA-256)
-- `ph` (telefone hash SHA-256)
+CAPI envia em `user_data` (quanto mais campos, maior o EMQ):
+- `em` (email hash SHA-256) — nos eventos `Contact`, `CompleteRegistration`, `Lead`
+- `ph` (telefone hash SHA-256) — idem
 - `fn` / `ln` (nome/sobrenome hash SHA-256)
 - `fbp` / `fbc` (cookies Meta capturados via [lib/utm.ts](lib/utm.ts) `getMetaCookies()`)
 - `client_ip_address` (do header `x-forwarded-for`)
 - `client_user_agent` (do header `user-agent`)
 
-Expectativa: EMQ 8-9/10.
+O **Pixel do browser** agora também recebe Advanced Matching manual (`fbq('init', …, {em, ph, fn, ln})`)
+nos eventos `Contact`/`CompleteRegistration`/`Lead` → sobe o EMQ do canal navegador
+(estava em 4/10). **Confirme também que o Automatic Advanced Matching está ON**
+no Gerenciador de Eventos. Expectativa: EMQ 7-9/10.
 
 ---
 
@@ -66,7 +89,21 @@ Expectativa: EMQ 8-9/10.
 
 ### Evento de otimização
 
-**Conversão Personalizada: `Lead Quiz Haganá`**
+> ⚠️ **Mudança (2026-06-08):** otimizar pela conversão `Lead Quiz Haganá` deixou
+> o conjunto preso em aprendizado — o evento `Lead` final dispara pouquíssimas
+> vezes (taxa de conclusão do quiz é baixa). Enquanto o volume de conclusão não
+> sobe, **otimizar por `Contact`** (telefone+e-mail capturados na pergunta de
+> contato), que tem volume bem maior e ainda é alta intenção.
+
+**Escada de evento de otimização (do mais pro menos volumoso):**
+
+1. `Contact` (recomendado agora) — capturou tel+email. Crie uma conversão
+   personalizada `Contato Quiz Haganá` com evento base `Contact` + URL contém
+   `quiz.hagana.com.br`, ou otimize direto pelo standard `Contact`.
+2. `CompleteRegistration` — concluiu o quiz inteiro (volume médio).
+3. `Lead` / `Lead Quiz Haganá` — só quando houver ≥50 Leads/semana.
+
+**Conversão Personalizada existente: `Lead Quiz Haganá`**
 
 | Campo | Valor |
 |---|---|
@@ -78,6 +115,12 @@ Expectativa: EMQ 8-9/10.
 | Valor | (em branco — CAPI já envia value=score) |
 
 **Por que custom conversion:** o Pixel é compartilhado com outras landings. Filtrar por URL isola o aprendizado do algoritmo só pros leads do quiz.
+
+> 🔎 **Validar a regra de URL:** a conversão `Lead Quiz Haganá` contou só 2 disparos
+> em 30 dias enquanto o Pixel registrou ~16 leads do quiz no período. Confirme que
+> a **URL de produção é mesmo `quiz.hagana.com.br`** (e não um domínio `.vercel.app`
+> ou `hagana.com.br/quiz`). Se for outro domínio, a regra `contém` não casa e a
+> conversão fica zerada. Ajuste a regra para o domínio real.
 
 ### Configuração do conjunto
 
@@ -228,7 +271,7 @@ Isso permite análises de funil, atribuição multi-touch e cruzamento com o
 
 | Tabela | O que guarda |
 |---|---|
-| `quiz_events` | 1 linha por interação do user (page_view, quiz_start, gate_pass, quiz_step, quiz_complete, disqualified, lead_submit) |
+| `quiz_events` | 1 linha por interação do user (page_view, quiz_start, gate_pass, quiz_step, quiz_contact, quiz_complete, disqualified, lead_submit) |
 | `quiz_leads` | 1 linha por lead finalizado, com score, label, answers JSONB, todos UTMs + click IDs + match quality |
 
 Schema completo em [db/quiz-schema.sql](db/quiz-schema.sql). É idempotente
@@ -252,16 +295,20 @@ Schema completo em [db/quiz-schema.sql](db/quiz-schema.sql). É idempotente
        │
 [USER inicia / passa do gate]
        │
-       ├─► trackQuizStart()        → POST /api/events  → quiz_events
+       ├─► trackQuizStart()        → POST /api/events  → quiz_events + CAPI ViewContent
        ├─► trackGatePass()         → POST /api/events  → quiz_events
        │
 [USER responde cada pergunta]
        │
        ├─► trackQuizStep()         → POST /api/events  → quiz_events
        │
+[USER fornece telefone + e-mail]
+       │
+       ├─► trackQuizContact()      → POST /api/events  → quiz_events + CAPI Contact
+       │
 [USER conclui o quiz]
        │
-       ├─► trackQuizComplete()     → POST /api/events  → quiz_events
+       ├─► trackQuizComplete()     → POST /api/events  → quiz_events + CAPI CompleteRegistration
        │
 [USER cai na tela de resultado]
        │
@@ -271,6 +318,25 @@ Schema completo em [db/quiz-schema.sql](db/quiz-schema.sql). É idempotente
              ├─► sendToMetaCAPI()         (com event_id pro Pixel)
              └─► update quiz_leads        (capi_status / rd_status pra auditoria)
 ```
+
+### Lead parcial (captura na Q5) — não perder quem abandona
+
+O contato (telefone+e-mail) é capturado na **Q5**, mas o quiz só termina algumas
+perguntas depois. Pra não perder quem desiste no meio:
+
+- Ao responder a Q5, [components/quiz/QuizContainer.tsx](components/quiz/QuizContainer.tsx)
+  chama `submitPartialLead()` ([lib/lead.ts](lib/lead.ts)) → `POST /api/leads` com `partial: true`.
+- O backend **grava no Supabase** (`stage = 'partial'`) e **cria a negociação no RD CRM**,
+  guardando o `rd_crm_deal_id`.
+- No fim do quiz, o submit final faz **upsert na mesma linha** (dedup por `session_id`)
+  e **atualiza a negociação existente** (via `rd_crm_deal_id`) em vez de criar outra.
+- RD Station (marketing) e o **CAPI `Lead`** só disparam no submit **final** — o parcial
+  só alimenta CRM/Supabase. (O evento `Contact` Pixel+CAPI sai na Q5 pelo `/api/events`.)
+
+> ⚠️ **Migração obrigatória antes do deploy:** rode [db/quiz-schema.sql](db/quiz-schema.sql)
+> de novo no Supabase (é idempotente) — ele adiciona as colunas `stage` e
+> `rd_crm_deal_id` em `quiz_leads`. **Sem elas o dedup falha e voltam negociações
+> duplicadas no CRM.**
 
 **Segurança operacional:**
 - Tudo Supabase passa por `Promise.allSettled` ou `.catch(() => {})`
@@ -331,6 +397,7 @@ GROUP BY q.label ORDER BY q.label;
 
 | Data | Commit | Mudança |
 |---|---|---|
+| 2026-06-08 | _(este)_ | Evento nomeado por etapa do funil (QuizStep/GatePass/Contact via trackCustom + standard); CAPI nos marcos (ViewContent/Contact/CompleteRegistration) com dedup; Advanced Matching no Pixel; helper [lib/meta-capi.ts](lib/meta-capi.ts). **Lead parcial na Q5** (Supabase + RD CRM com dedup por `session_id`/`rd_crm_deal_id` — exige migração `stage`/`rd_crm_deal_id`). Evento de otimização recomendado: `Contact` |
 | 2026-05-27 | `4246f23` | Deduplicação event_id + match quality (fbp/fbc/IP/UA) |
 | 2026-05-?? | `a98b907` | Integração inicial Meta CAPI |
 | 2026-05-?? | `1bb819e` | Pixel Meta `724771557389668` instalado |

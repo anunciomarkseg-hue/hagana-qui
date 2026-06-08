@@ -397,6 +397,8 @@ GROUP BY q.label ORDER BY q.label;
 
 | Data | Commit | Mudança |
 |---|---|---|
+| 2026-06-08 | _(este)_ | **Google Ads gtag.js** (`AW-11323869943`) carregado no [app/layout.tsx](app/layout.tsx) — antes o `window.gtag` não existia (só GTM) e a conversão de Lead virava no-op. ⚠️ Se houver tag de conversão do Google Ads no GTM também, remover uma das duas pra não duplicar |
+| 2026-06-08 | _(este)_ | `await` no relay CAPI do [app/api/events/route.ts](app/api/events/route.ts) — sem ele, na Vercel a promise morria e ViewContent/Contact/CompleteRegistration não chegavam por servidor |
 | 2026-06-08 | _(este)_ | Evento nomeado por etapa do funil (QuizStep/GatePass/Contact via trackCustom + standard); CAPI nos marcos (ViewContent/Contact/CompleteRegistration) com dedup; Advanced Matching no Pixel; helper [lib/meta-capi.ts](lib/meta-capi.ts). **Lead parcial na Q5** (Supabase + RD CRM com dedup por `session_id`/`rd_crm_deal_id` — exige migração `stage`/`rd_crm_deal_id`). Evento de otimização recomendado: `Contact` |
 | 2026-05-27 | `4246f23` | Deduplicação event_id + match quality (fbp/fbc/IP/UA) |
 | 2026-05-?? | `a98b907` | Integração inicial Meta CAPI |

@@ -61,24 +61,30 @@ export async function POST(req: NextRequest) {
   // Deduplicado com o Pixel do browser pelo mesmo `eventId`.
   if (data.metaEvent && process.env.META_CAPI_TOKEN) {
     const [firstName, ...rest] = (data.name ?? '').trim().split(' ')
-    sendCAPIEvent({
-      eventName: data.metaEvent,
-      eventId: data.eventId,
-      eventSourceUrl: data.eventSourceUrl,
-      customData: data.value != null
-        ? { value: data.value, currency: data.currency || 'BRL' }
-        : undefined,
-      user: {
-        email: data.email,
-        phone: data.phone,
-        firstName: firstName || undefined,
-        lastName: rest.join(' ') || undefined,
-        fbp: data.fbp,
-        fbc: data.fbc,
-        ip: ip ?? undefined,
-        userAgent: userAgent ?? undefined,
-      },
-    }).catch(err => console.error('[api/events] CAPI relay falhou:', String(err).slice(0, 300)))
+    // IMPORTANTE: await — na Vercel (serverless) uma promise não-aguardada é
+    // encerrada quando a função responde, então o evento CAPI nunca chegaria.
+    try {
+      await sendCAPIEvent({
+        eventName: data.metaEvent,
+        eventId: data.eventId,
+        eventSourceUrl: data.eventSourceUrl,
+        customData: data.value != null
+          ? { value: data.value, currency: data.currency || 'BRL' }
+          : undefined,
+        user: {
+          email: data.email,
+          phone: data.phone,
+          firstName: firstName || undefined,
+          lastName: rest.join(' ') || undefined,
+          fbp: data.fbp,
+          fbc: data.fbc,
+          ip: ip ?? undefined,
+          userAgent: userAgent ?? undefined,
+        },
+      })
+    } catch (err) {
+      console.error('[api/events] CAPI relay falhou:', String(err).slice(0, 300))
+    }
   }
 
   const supabase = getSupabaseAdmin()

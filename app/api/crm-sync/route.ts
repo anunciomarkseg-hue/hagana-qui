@@ -94,12 +94,18 @@ export async function GET(req: NextRequest) {
 
   // Já enviados (dedup)
   const sent = new Set<string>()
+  let dedupReadError: string | null = null
   if (supabase) {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('quiz_events')
       .select('question_id')
       .eq('event_type', 'crm_conversion_sent')
+    if (error) dedupReadError = error.message
     for (const row of data ?? []) if (row.question_id) sent.add(String(row.question_id))
+  }
+  // Sem leitura de dedup não dá pra garantir não-duplicação — aborta envio real.
+  if (dedupReadError && !dry) {
+    return NextResponse.json({ ok: false, error: `dedup read: ${dedupReadError}` }, { status: 500 })
   }
 
   const results: Array<Record<string, unknown>> = []
@@ -195,6 +201,8 @@ export async function GET(req: NextRequest) {
     dealsChecked: deals.length,
     qualifiedInWindow: qualified.length,
     alreadySent: qualified.filter(d => sent.has(String(d._id ?? d.id ?? ''))).length,
+    dedupKnown: sent.size,
+    dedupReadError,
     processed: results.length,
     googleConfigured: googleAdsConfigured(),
     results,

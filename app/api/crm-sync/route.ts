@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase'
 import { sendCAPIEvent } from '@/lib/meta-capi'
@@ -175,8 +176,9 @@ export async function GET(req: NextRequest) {
 
     // Registra o envio (dedup) — sem PII, só ids e status.
     if (supabase) {
+      // session_id é uuid na tabela — o dedup usa question_id (= deal_id do CRM)
       const { error } = await supabase.from('quiz_events').insert({
-        session_id: `crm:${dealId}`,
+        session_id: randomUUID(),
         event_type: 'crm_conversion_sent',
         question_id: dealId,
         answer: { stage: stageName, meta: entry.meta, google: entry.google },

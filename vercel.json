@@ -1,5 +1,8 @@
 {
   "framework": "nextjs",
+  "crons": [
+    { "path": "/api/crm-sync", "schedule": "0 12 * * *" }
+  ],
   "buildCommand": "next build",
   "devCommand": "next dev",
   "installCommand": "npm install",

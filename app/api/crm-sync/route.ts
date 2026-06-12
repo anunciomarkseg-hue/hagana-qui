@@ -203,6 +203,14 @@ export async function GET(req: NextRequest) {
     alreadySent: qualified.filter(d => sent.has(String(d._id ?? d.id ?? ''))).length,
     dedupKnown: sent.size,
     dedupReadError,
+    ...(dry && supabase ? {
+      debug: {
+        supabaseHost: (process.env.NEXT_PUBLIC_SUPABASE_URL ?? 'ausente').replace('https://', '').split('.')[0],
+        totalEvents: (await supabase.from('quiz_events').select('id', { count: 'exact', head: true })).count,
+        sentEvents: (await supabase.from('quiz_events').select('id', { count: 'exact', head: true })
+          .eq('event_type', 'crm_conversion_sent')).count,
+      },
+    } : {}),
     processed: results.length,
     googleConfigured: googleAdsConfigured(),
     results,

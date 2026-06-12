@@ -92,16 +92,27 @@ export async function GET(req: NextRequest) {
     return ref >= cutoff
   })
 
-  // Já enviados (dedup)
+  // Já enviados (dedup). Leitura via REST direto: o select equivalente do
+  // supabase-js retornava [] sem erro neste deploy (count via head=true via 24
+  // linhas — inconsistência não explicada), então usamos o caminho comprovado.
   const sent = new Set<string>()
   let dedupReadError: string | null = null
-  if (supabase) {
-    const { data, error } = await supabase
-      .from('quiz_events')
-      .select('question_id')
-      .eq('event_type', 'crm_conversion_sent')
-    if (error) dedupReadError = error.message
-    for (const row of data ?? []) if (row.question_id) sent.add(String(row.question_id))
+  const sbUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const sbKey = process.env.SUPABASE_SERVICE_KEY
+  if (sbUrl && sbKey) {
+    try {
+      const res = await fetch(
+        `${sbUrl}/rest/v1/quiz_events?select=question_id&event_type=eq.crm_conversion_sent&limit=1000`,
+        { headers: { apikey: sbKey, Authorization: `Bearer ${sbKey}` }, cache: 'no-store' }
+      )
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${(await res.text()).slice(0, 150)}`)
+      const rows = (await res.json()) as Array<{ question_id?: string }>
+      for (const row of rows) if (row.question_id) sent.add(String(row.question_id))
+    } catch (err) {
+      dedupReadError = String(err).slice(0, 200)
+    }
+  } else {
+    dedupReadError = 'env Supabase ausente'
   }
   // Sem leitura de dedup não dá pra garantir não-duplicação — aborta envio real.
   if (dedupReadError && !dry) {

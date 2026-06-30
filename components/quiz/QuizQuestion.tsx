@@ -16,6 +16,7 @@ interface QuizQuestionProps {
   clientName?: string
   initialValue?: string
   initialContact?: { phone: string; email: string }
+  initialIdentity?: { company: string; name: string }
 }
 
 function resolveQuestion(text: string, name: string): string {
@@ -32,11 +33,14 @@ export default function QuizQuestion({
   clientName = '',
   initialValue = '',
   initialContact,
+  initialIdentity,
 }: QuizQuestionProps) {
   const [selected, setSelected] = useState<string[]>([])
   const [textValue, setTextValue] = useState(initialValue)
   const [phone, setPhone] = useState(initialContact?.phone ?? '')
   const [email, setEmail] = useState(initialContact?.email ?? '')
+  const [idCompany, setIdCompany] = useState(initialIdentity?.company ?? '')
+  const [idName, setIdName] = useState(initialIdentity?.name ?? '')
   const [touched, setTouched] = useState(false)
 
   const questionText = resolveQuestion(question.question, clientName)
@@ -65,6 +69,12 @@ export default function QuizQuestion({
   const contactValid = phone.trim().length >= 8 && email.trim().includes('@')
   const handleContactSubmit = () => {
     if (contactValid) onAnswer(`${phone.trim()}::${email.trim()}`)
+  }
+
+  // ── Identity (empreendimento + nome no mesmo card) ──────────────────────────
+  const identityValid = idCompany.trim().length > 0 && idName.trim().length > 0
+  const handleIdentitySubmit = () => {
+    if (identityValid) onAnswer(`${idCompany.trim()}::${idName.trim()}`)
   }
 
   return (
@@ -122,6 +132,48 @@ export default function QuizQuestion({
           <GlowButton
             onClick={handleTextSubmit}
             disabled={!textValue.trim()}
+            size="md"
+            fullWidth
+          >
+            Continuar
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M5 12h14M12 5l7 7-7 7" />
+            </svg>
+          </GlowButton>
+        </motion.div>
+      )}
+
+      {/* ── Identity inputs (empreendimento + nome) ── */}
+      {question.type === 'identity' && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="flex flex-col gap-3"
+        >
+          <input
+            type="text"
+            placeholder="Nome do empreendimento"
+            value={idCompany}
+            onChange={e => setIdCompany(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && (document.getElementById('quiz-id-name') as HTMLInputElement)?.focus()}
+            className="form-input w-full px-4 py-3.5 rounded-xl text-sm"
+            autoFocus
+            required
+          />
+          <input
+            id="quiz-id-name"
+            type="text"
+            placeholder="Seu nome completo"
+            value={idName}
+            onChange={e => setIdName(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleIdentitySubmit()}
+            className="form-input w-full px-4 py-3.5 rounded-xl text-sm"
+            required
+          />
+          <GlowButton
+            onClick={handleIdentitySubmit}
+            disabled={!identityValid}
             size="md"
             fullWidth
           >

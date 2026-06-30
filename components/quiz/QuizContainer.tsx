@@ -19,14 +19,13 @@ import {
   trackPageView,
   trackGatePass,
 } from '@/lib/tracking'
-import QuizIntro from './QuizIntro'
 import QuizGate from './QuizGate'
 import QuizQuestion from './QuizQuestion'
 import QuizProcessing from './QuizProcessing'
 import QuizResult from './QuizResult'
 import GlassCard from '@/components/ui/GlassCard'
 
-type Stage = 'intro' | 'gate' | 'question' | 'processing' | 'result' | 'disqualified'
+type Stage = 'gate' | 'question' | 'processing' | 'result' | 'disqualified'
 
 interface State {
   stage: Stage
@@ -35,7 +34,6 @@ interface State {
 }
 
 type Action =
-  | { type: 'START' }
   | { type: 'GATE_PASS' }
   | { type: 'ANSWER'; questionIndex: number; answer: string | string[] }
   | { type: 'BACK' }
@@ -43,9 +41,6 @@ type Action =
 
 function reducer(state: State, action: Action): State {
   switch (action.type) {
-    case 'START':
-      return { ...state, stage: 'gate' }
-
     case 'GATE_PASS':
       return { ...state, stage: 'question', questionIndex: 0 }
 
@@ -81,7 +76,7 @@ export interface FormData {
 }
 
 const initial: State = {
-  stage: 'intro',
+  stage: 'gate',
   questionIndex: 0,
   answers: {},
 }
@@ -91,14 +86,12 @@ export default function QuizContainer() {
   const [formData, setFormData] = useState<FormData>({ name: '', company: '', phone: '', email: '' })
   const partialSentRef = useRef(false)
 
-  // PageView interno (Pixel browser já dispara automático no layout)
+  // PageView interno + início do quiz. Sem tela de intro: o quiz já abre no gate,
+  // então o ViewContent (quiz_start) dispara na montagem — evento de topo com
+  // volume para o Meta otimizar.
   useEffect(() => {
     trackPageView()
-  }, [])
-
-  const handleStart = useCallback(() => {
     trackQuizStart()
-    dispatch({ type: 'START' })
   }, [])
 
   const handleGatePass = useCallback(() => {
@@ -113,6 +106,10 @@ export default function QuizContainer() {
     let contactInfo: { phone: string; email: string; name: string } | null = null
     if (question.type === 'text' && question.fieldKey && typeof answer === 'string') {
       setFormData(prev => ({ ...prev, [question.fieldKey!]: answer }))
+    }
+    if (question.type === 'identity' && typeof answer === 'string') {
+      const [company, name] = answer.split('::')
+      setFormData(prev => ({ ...prev, company: company ?? '', name: name ?? '' }))
     }
     if (question.type === 'contact' && typeof answer === 'string') {
       const [phone, email] = answer.split('::')
@@ -173,6 +170,10 @@ export default function QuizContainer() {
     if (!currentQ || currentQ.type !== 'contact') return undefined
     return { phone: formData.phone, email: formData.email }
   }
+  const getInitialIdentity = () => {
+    if (!currentQ || currentQ.type !== 'identity') return undefined
+    return { company: formData.company, name: formData.name }
+  }
 
   return (
     <main className="relative min-h-dvh flex items-center justify-center p-4 sm:p-6 bg-hagana-dark overflow-hidden">
@@ -190,10 +191,6 @@ export default function QuizContainer() {
 
         <div className="p-6 sm:p-8">
         <AnimatePresence mode="wait">
-          {state.stage === 'intro' && (
-            <QuizIntro key="intro" onStart={handleStart} />
-          )}
-
           {state.stage === 'gate' && (
             <QuizGate key="gate" onContinue={handleGatePass} />
           )}
@@ -209,6 +206,7 @@ export default function QuizContainer() {
               clientName={formData.name}
               initialValue={getInitialValue()}
               initialContact={getInitialContact()}
+              initialIdentity={getInitialIdentity()}
             />
           )}
 

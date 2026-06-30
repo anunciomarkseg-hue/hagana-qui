@@ -10,7 +10,7 @@ export interface QuizQuestion {
   id: number
   question: string
   subtitle?: string
-  type: 'single' | 'multiple' | 'text' | 'contact'
+  type: 'single' | 'multiple' | 'text' | 'contact' | 'identity'
   placeholder?: string
   fieldKey?: 'name' | 'company'
   maxSelections?: number
@@ -32,18 +32,8 @@ export const QUIZ_QUESTIONS: QuizQuestion[] = [
   },
   {
     id: 1,
-    question: 'Qual o nome do seu empreendimento?',
-    type: 'text',
-    placeholder: 'Nome do empreendimento',
-    fieldKey: 'company',
-    options: [],
-  },
-  {
-    id: 2,
-    question: 'E qual o seu nome?',
-    type: 'text',
-    placeholder: 'Seu nome completo',
-    fieldKey: 'name',
+    question: 'Sobre você e o empreendimento',
+    type: 'identity',
     options: [],
   },
   {
@@ -109,17 +99,6 @@ export const QUIZ_QUESTIONS: QuizQuestion[] = [
       { id: 'technical', label: 'Sou Gestor de Contratos responsável técnico e preciso de aprovação financeira.', score: 12 },
     ],
   },
-  {
-    id: 9,
-    question: 'Como prefere ser contatado, {name}?',
-    type: 'single',
-    options: [
-      { id: 'call',      label: 'Ligação',                     score: 5 },
-      { id: 'whatsapp',  label: 'WhatsApp',                    score: 5 },
-      { id: 'video',     label: 'Reunião por videochamada',    score: 10 },
-      { id: 'email-pref',label: 'E-mail',                      score: 3 },
-    ],
-  },
 ]
 
 export const TOTAL_QUESTIONS = QUIZ_QUESTIONS.length
@@ -130,7 +109,7 @@ export function calculateScore(answers: Record<number, string | string[]>): numb
     const qIdx = parseInt(qIdxStr)
     const question = QUIZ_QUESTIONS[qIdx]
     if (!question) continue
-    if (question.type === 'text' || question.type === 'contact') continue
+    if (question.type === 'text' || question.type === 'contact' || question.type === 'identity') continue
     const ids = Array.isArray(answer) ? answer : [answer]
     for (const id of ids) {
       const option = question.options.find(o => o.id === id)
@@ -156,8 +135,9 @@ export function buildAnswerSummary(answers: Record<number, string | string[]>): 
     const qIdx = parseInt(qIdxStr)
     const question = QUIZ_QUESTIONS[qIdx]
     if (!question) continue
-    // Contato (telefone/email) já vai em campos padrão do RD — não duplica no resumo
-    if (question.type === 'contact') continue
+    // Contato (telefone/email) e identidade (nome/empreendimento) já vão em
+    // campos padrão do RD — não duplica no resumo
+    if (question.type === 'contact' || question.type === 'identity') continue
     const questionText = question.question.replace(/\{name\}/g, '').trim().replace(/[\s,?]+$/, '')
     let valueText: string
     if (question.type === 'text') {
